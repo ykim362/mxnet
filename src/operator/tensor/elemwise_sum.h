@@ -117,7 +117,8 @@ void ElementWiseSumCompute(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(outputs.size(), 1U);
 
 #if MXNET_USE_MKLDNN == 1
-  CHECK_EQ(outputs[0].type_flag_, mshadow::kFloat32);
+  CHECK_EQ(outputs[0].type_flag_, mshadow::kFloat32) << "add_n data type "
+        "must be float";;
   MKLDNNElementWiseSumCompute<xpu, float>(attrs, ctx, inputs, req, outputs);
 #else
   MSHADOW_TYPE_SWITCH(outputs[0].type_flag_, DType, {

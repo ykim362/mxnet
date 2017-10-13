@@ -94,7 +94,7 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
   }
 #endif
 
-#if 0
+#if 1
   DType * out_dptr = out_data[0].dptr<DType>();
   int out_size = static_cast<int>((out_data[0].Size() + DataType<DType>::kLanes - 1)
                                   / DataType<DType>::kLanes);
@@ -133,7 +133,7 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
   }
 #endif
 
-#if 1
+#if 0
   using namespace mshadow;
   using namespace mshadow::expr;
   mkldnn::engine cpu_engine = mxnet::CpuEngine::Instance().get_engine();
@@ -157,7 +157,7 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
   void *output_ptr = mkl_prv_data<DType>(out_data[0]);
   if (output_ptr != nullptr) {
     // the output buffer is a prv buffer, we will use it directly
-    LOG(INFO) << "output is MKL";
+//    LOG(INFO) << "output is MKL";
     std::shared_ptr<MKLDNNData<DType>> output_dnn_data =
         get_mkldnn_prv_descriptor<DType>(out_data[0]);
     // get memory primitive descriptor for usr and prv
@@ -165,8 +165,8 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
         output_usr_mpd = output_dnn_data->usr_memory_pd();
     std::shared_ptr<memory::primitive_desc>
         output_prv_mpd = output_dnn_data->prv_memory_pd();
-    LOG(INFO) << "output usr format " << output_usr_mpd->desc().data.format;
-    LOG(INFO) << "output prv format " << output_prv_mpd->desc().data.format;
+//    LOG(INFO) << "output usr format " << output_usr_mpd->desc().data.format;
+//    LOG(INFO) << "output prv format " << output_prv_mpd->desc().data.format;
 
     output_prv_desc = output_prv_mpd->desc().data;
 
@@ -174,7 +174,7 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
     output = output_dnn_data->get_prv_memory();
 
   } else {
-    LOG(INFO) << "output is NOT MKL";
+//    LOG(INFO) << "output is NOT MKL";
 
     // if output is not MKL, we assume usr layout, default is nchw
     std::shared_ptr<memory::primitive_desc> output_usr_mpd;
@@ -202,22 +202,22 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
   std::vector<memory::primitive_desc> input_prv_mpd;
   std::shared_ptr<MKLDNNData<DType>> input_dnn_data;
   for (size_t i = 0; i < in_data.size(); ++i) {
-    LOG(INFO) << "input " << i;
+//    LOG(INFO) << "input " << i;
     void *input_ptr = mkl_prv_data<DType>(in_data[i]);
     // checking if we have mkldnn prv data
     if (input_ptr != nullptr) {
-      LOG(INFO) << "input " << i << " is MKL";
+//      LOG(INFO) << "input " << i << " is MKL";
 
       input_dnn_data = get_mkldnn_prv_descriptor<DType>(in_data[i]);
       // TODO lfeng: check input prv descriptor match output prv descriptor
       // convert as needed.
       input_usr_mpd.push_back(*input_dnn_data->usr_memory_pd());
       input_prv_mpd.push_back(*input_dnn_data->prv_memory_pd());
-      LOG(INFO) << "input usr format " << input_usr_mpd[i].desc().data.format;
-      LOG(INFO) << "input prv format " << input_prv_mpd[i].desc().data.format;
+//      LOG(INFO) << "input usr format " << input_usr_mpd[i].desc().data.format;
+//      LOG(INFO) << "input prv format " << input_prv_mpd[i].desc().data.format;
 
     } else {
-      LOG(INFO) << "input " << i << " is NOT MKL";
+//      LOG(INFO) << "input " << i << " is NOT MKL";
 
       std::shared_ptr<memory::primitive_desc> usr_memory_pd;
       usr_memory_pd.reset(new memory::primitive_desc(default_desc,
@@ -231,8 +231,8 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
                                                      cpu_engine));
       input_prv_mpd.push_back(*prv_memory_pd);
 
-      LOG(INFO) << "input usr format " << input_usr_mpd[i].desc().data.format;
-      LOG(INFO) << "input prv format " << input_prv_mpd[i].desc().data.format;
+//      LOG(INFO) << "input usr format " << input_usr_mpd[i].desc().data.format;
+//      LOG(INFO) << "input prv format " << input_prv_mpd[i].desc().data.format;
       input_dnn_data.reset(new MKLDNNData<DType>(usr_memory_pd,
                                                  prv_memory_pd));
     }
@@ -240,11 +240,13 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
     input_dnn_data->get_converted_prv((float *) in_data[i].dptr_, true,
                                       in_data[i]);
     inputs.push_back(*input_memory);
+#if 0
     {
       std::string prefix = "FWD-BEF SUM ";
       printTensorFormat<DType>(prefix+"input_dnn_data", input_dnn_data);
       printBufferHead(prefix+"in_data.kData-i", in_data[i]);
     }
+#endif
   }
 
 

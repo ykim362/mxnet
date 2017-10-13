@@ -207,10 +207,12 @@ class TBlob {
     return dptr_;
   }
 
+
+#if MXNET_USE_MKLDNN == 1
   /**
-   * Check and convert data from MKLDNN to cpu buffer. This does not change
-   * the flag pointing to which buffer (mkl vs. cpu) has the latest data.
-   * @return
+   * Check and convert (if needed) data from MKLDNN to cpu buffer. This does
+   * not change the flag (head_) pointing to which buffer (mkl vs. cpu).
+   * @return Raw data pointer for debugging purpurse.
    */
   template<typename DType>
   DType * getSyncedCPUDataPtr() const {
@@ -221,6 +223,8 @@ class TBlob {
     }
     return reinterpret_cast<DType*>(dptr_);
   }
+#endif
+
   /*!
    * \brief return size of i-th dimension, start counting from highest dimension
    * \param idx the dimension count from the highest dimensin
