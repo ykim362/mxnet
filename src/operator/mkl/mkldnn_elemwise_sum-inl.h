@@ -62,7 +62,6 @@ void MKLDNNElementWiseSumCompute(const nnvm::NodeAttrs &attrs,
 
   if (req[0] == kNullOp) return;
 
-  Stream<xpu> *s = ctx.get_stream<xpu>();
   mkldnn::engine cpu_engine = mxnet::CpuEngine::Instance().get_engine();
 
   // TODO lfeng: MKLDNN might support other layouts (1D, 2D). leaving as
