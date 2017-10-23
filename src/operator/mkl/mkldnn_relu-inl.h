@@ -40,14 +40,14 @@
 namespace mxnet {
 namespace op {
 
-template<typename xpu, typename Dtype>
-class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
+template<typename xpu, typename DType>
+class MKLDNNReluOp : public Operator, public MKLDNNLayer<DType> {
  public:
   std::string getName() {
     std::string name = "MKLDNNReluOp";
     return name;
   }
-  MKLDNNReluOp() : MKLDNNLayer<Dtype>()
+  MKLDNNReluOp() : MKLDNNLayer<DType>()
     , fwd_top_data(NULL), fwd_bottom_data(NULL), prv_mpd(NULL)
     , num_(0), width_(0), height_(0), channels_(0) {
     init_mkldnn_ = false;
@@ -56,16 +56,16 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
   }
 
  private:
-  void LayerSetup(const mshadow::Tensor<xpu, 4, Dtype> &data) {
+  void LayerSetup(const mshadow::Tensor<xpu, 4, DType> &data) {
     this->width_ = data.shape_[3];
     this->height_ = data.shape_[2];
     this->channels_ = data.shape_[1];
     this->num_ = data.shape_[0];
   }
   void InitReLUFwd(const std::vector<TBlob> &in_data) {
-    void * bottom_data = reinterpret_cast<void *>(mkl_prv_data<Dtype>(in_data[activation::kData]));
-    std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > bottom_prv_descriptor
-      = get_mkldnn_prv_descriptor<Dtype>(in_data[activation::kData]);
+    void * bottom_data = reinterpret_cast<void *>(mkl_prv_data<DType>(in_data[activation::kData]));
+    std::shared_ptr<MKLDNNMemoryDescriptor<DType> > bottom_prv_descriptor
+      = get_mkldnn_prv_descriptor<DType>(in_data[activation::kData]);
     std::shared_ptr<memory::desc> bottom_data_md, top_data_md;
     std::shared_ptr<memory::primitive_desc> usr_mpd(NULL);
 
@@ -73,7 +73,7 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
     int32_t iw = this->width_;
     int32_t ih = this->height_;
     int32_t ic = this->channels_;
-    Dtype negative_slope = 0;
+    DType negative_slope = 0;
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
     memory::data_type mpcsn = memory::data_type::f32;
 
@@ -96,9 +96,9 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
     // relu_forward is being deprecated, use new eltwise_forward
     eltwise_forward::desc fwd_training_desc(prop_kind::forward_training, eltwise_relu, *bottom_data_md, negative_slope);
     fwd_training_pd.reset(new relu_forward::primitive_desc(fwd_training_desc, cpu_engine));
-    fwd_bottom_data.reset(new MKLDNNData<Dtype>(usr_mpd, prv_mpd));
+    fwd_bottom_data.reset(new MKLDNNData<DType>(usr_mpd, prv_mpd));
     fwd_bottom_data->name = "fwd_bottom_data   @ " + this->getName();
-    fwd_top_data.reset(new MKLDNNData<Dtype>(usr_mpd, prv_mpd));
+    fwd_top_data.reset(new MKLDNNData<DType>(usr_mpd, prv_mpd));
     fwd_top_data->name = "fwd_top_data   @ " + this->getName();
   }
 
@@ -113,26 +113,35 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
         CHECK_EQ(in_data.size(), 1);
         CHECK_EQ(out_data.size(), 1);
         Stream<xpu> *s = ctx.get_stream<xpu>();
-        Tensor<xpu, 4, Dtype> data;
-        Tensor<xpu, 4, Dtype> out;
+#if 1
+    {
+      std::string prefix = "FWD-BEF RELU ";
+      PRINT_TENSOR(in_data, activation::kData);
+      PRINT_TENSOR(out_data, activation::kOut);
+      PRINT_BUFFER_HEAD(in_data, activation::kData);
+      PRINT_BUFFER_HEAD(out_data, activation::kOut);
+    }
+#endif
+        Tensor<xpu, 4, DType> data;
+        Tensor<xpu, 4, DType> out;
         if (in_data[activation::kData].ndim() == 2) {
           Shape<4> dshape = Shape4(in_data[activation::kData].shape_[0],
             in_data[activation::kData].shape_[1], 1, 1);
-          data = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+          data = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
             in_data[activation::kData], dshape, s);
-          out = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+          out = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
             out_data[activation::kOut], dshape, s);
         } else if (in_data[activation::kData].ndim() == 3) {
           Shape<4> dshape = Shape4(in_data[activation::kData].shape_[0],
             in_data[activation::kData].shape_[1],
             in_data[activation::kData].shape_[2], 1);
-          data = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+          data = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
             in_data[activation::kData], dshape, s);
-          out = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+          out = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
             out_data[activation::kOut], dshape, s);
         } else {
-          data = mkl_experimental_direct_get<xpu, 4, Dtype>(in_data[activation::kData], s);
-          out = mkl_experimental_direct_get<xpu, 4, Dtype>(out_data[activation::kOut], s);
+          data = mkl_experimental_direct_get<xpu, 4, DType>(in_data[activation::kData], s);
+          out = mkl_experimental_direct_get<xpu, 4, DType>(out_data[activation::kOut], s);
         }
 
     if (!init_mkldnn_) {
@@ -158,6 +167,16 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
           out_data[activation::kOut], fwd_top_data, in_place_);
     }
     reluFwd.submit();
+
+#if 1
+    {
+      std::string prefix = "FWD-AFT RELU ";
+      PRINT_TENSOR(in_data, activation::kData);
+      PRINT_TENSOR(out_data, activation::kOut);
+      PRINT_BUFFER_HEAD(in_data, activation::kData);
+      PRINT_BUFFER_HEAD(out_data, activation::kOut);
+    }
+#endif
   }
 
   void InitReLUBwd(const std::vector<TBlob> &out_grad, const std::vector<TBlob> &in_data) {
@@ -165,9 +184,9 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
     int32_t iw = this->width_;
     int32_t ih = this->height_;
     int32_t ic = this->channels_;
-    Dtype negative_slope = 0;
+    DType negative_slope = 0;
     void * top_diff_data =
-      const_cast<Dtype*>(mkl_prv_data<Dtype>(out_grad[activation::kOut]));
+      const_cast<DType*>(mkl_prv_data<DType>(out_grad[activation::kOut]));
     bool top_diff_is_prv = (top_diff_data != NULL);
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
     memory::data_type mpcsn = memory::data_type::f32;
@@ -182,8 +201,8 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
     std::shared_ptr<memory::desc> default_md;
     default_md.reset(new memory::desc({ { n, ic, ih, iw } }, mpcsn, memory::format::nchw));
     if (top_diff_is_prv) {
-      std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > mem_descr
-        = get_mkldnn_prv_descriptor<Dtype>(out_grad[activation::kOut]);
+      std::shared_ptr<MKLDNNMemoryDescriptor<DType> > mem_descr
+        = get_mkldnn_prv_descriptor<DType>(out_grad[activation::kOut]);
       usr_diff_mpd = mem_descr->usr_memory_pd();
       prv_diff_mpd = mem_descr->prv_memory_pd();
     } else {
@@ -201,11 +220,11 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
     eltwise_backward::desc reluBwd_desc(eltwise_relu, *top_diff_md, *top_data_md, negative_slope);
     bwd_pd.reset(new relu_backward::primitive_desc(reluBwd_desc, cpu_engine,
       *fwd_training_pd));
-    bwd_top_diff.reset(new MKLDNNData<Dtype>(usr_diff_mpd, prv_diff_mpd));
+    bwd_top_diff.reset(new MKLDNNData<DType>(usr_diff_mpd, prv_diff_mpd));
     bwd_top_diff->name = "bwd_top_diff   @ " + this->getName();
-    bwd_bottom_diff.reset(new MKLDNNData<Dtype>(usr_diff_mpd, prv_diff_mpd));
+    bwd_bottom_diff.reset(new MKLDNNData<DType>(usr_diff_mpd, prv_diff_mpd));
     bwd_bottom_diff->name = "bwd_bottom_diff   @ " + this->getName();
-    bwd_bottom_data.reset(new MKLDNNData<Dtype>(usr_diff_mpd, prv_diff_mpd));
+    bwd_bottom_data.reset(new MKLDNNData<DType>(usr_diff_mpd, prv_diff_mpd));
     bwd_bottom_data->name = "bwd_bottom_data   @ " + this->getName();
   }
   virtual void Backward(const OpContext &ctx,
@@ -224,33 +243,50 @@ class MKLDNNReluOp : public Operator, public MKLDNNLayer<Dtype> {
     CHECK(in_data.size() == 1 && in_grad.size() == 1);
     CHECK_EQ(req.size(), 1);
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    Tensor<xpu, 4, Dtype> m_out_grad;
-    Tensor<xpu, 4, Dtype> m_in_grad;
-    Tensor<xpu, 4, Dtype> m_out_data;
-
+    Tensor<xpu, 4, DType> m_out_grad;
+    Tensor<xpu, 4, DType> m_in_grad;
+    Tensor<xpu, 4, DType> m_out_data;
+#if 0
+    {
+      auto printTensor = [] (const std::string& name, const mshadow::Tensor<xpu, 1, Dtype>& t) {
+          std::cout << "BEFORE " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
+          for (int i = 0; i < std::min(20, (int)t.size(0)); ++i) {
+            std::cout << t[i] << " ";
+          }
+          std::cout << std::endl;
+      };
+      mshadow::Stream <xpu> *s = ctx.get_stream<xpu>();
+      mshadow::Tensor<xpu, 1, Dtype> outgradkOut = out_grad[activation::kOut].FlatTo1D<xpu, Dtype>(s);
+      printTensor("relu outgradkOut", outgradkOut);
+      mshadow::Tensor<xpu, 1, Dtype> outdatakOut = out_data[activation::kOut].FlatTo1D<xpu, Dtype>(s);
+      printTensor("relu outdatakOut", outdatakOut);
+      mshadow::Tensor<xpu, 1, Dtype> ingradkData = in_grad[activation::kData].FlatTo1D<xpu, Dtype>(s);
+      printTensor("relu ingradkData", ingradkData);
+    }
+#endif
     if (out_grad[activation::kOut].ndim() == 2) {
       Shape<4> dshape = Shape4(out_grad[activation::kOut].shape_[0],
         out_grad[activation::kOut].shape_[1], 1, 1);
-      m_out_grad = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      m_out_grad = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_grad[activation::kOut], dshape, s);
-      m_out_data = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      m_out_data = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_data[activation::kOut], dshape, s);
-      m_in_grad = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      m_in_grad = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         in_grad[activation::kData], dshape, s);
     } else if (out_grad[activation::kOut].ndim() == 3) {
       Shape<4> dshape = Shape4(out_grad[activation::kOut].shape_[0],
         out_grad[activation::kOut].shape_[1],
         out_grad[activation::kOut].shape_[2], 1);
-      m_out_grad = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      m_out_grad = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_grad[activation::kOut], dshape, s);
-      m_out_data = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      m_out_data = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_data[activation::kOut], dshape, s);
-      m_in_grad = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      m_in_grad = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         in_grad[activation::kData], dshape, s);
     } else {
-      m_out_grad = mkl_experimental_direct_get<xpu, 4, Dtype>(out_grad[activation::kOut], s);
-      m_out_data = mkl_experimental_direct_get<xpu, 4, Dtype>(out_data[activation::kOut], s);
-      m_in_grad = mkl_experimental_direct_get<xpu, 4, Dtype>(in_grad[activation::kData], s);
+      m_out_grad = mkl_experimental_direct_get<xpu, 4, DType>(out_grad[activation::kOut], s);
+      m_out_data = mkl_experimental_direct_get<xpu, 4, DType>(out_data[activation::kOut], s);
+      m_in_grad = mkl_experimental_direct_get<xpu, 4, DType>(in_grad[activation::kData], s);
     }
     in_place_b_ = (m_out_grad.dptr_ != m_in_grad.dptr_);
 if (bwd_pd == nullptr) {
@@ -274,6 +310,25 @@ if (bwd_pd == nullptr) {
       in_grad[activation::kData], bwd_bottom_diff, in_place_b_);
     }
     reluBwd.submit();
+#if 0
+    {
+      auto printTensor = [] (const std::string& name, const mshadow::Tensor<xpu, 1, Dtype>& t) {
+          std::cout << "AFTER " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
+          for (int i = 0; i < std::min(20, (int)t.size(0)); ++i) {
+            std::cout << t[i] << " ";
+          }
+          std::cout << std::endl;
+      };
+      mshadow::Stream <xpu> *s = ctx.get_stream<xpu>();
+      mshadow::Tensor<xpu, 1, Dtype> outgradkOut = out_grad[activation::kOut].FlatTo1D<xpu, Dtype>(s);
+      printTensor("relu outgradkOut", outgradkOut);
+      mshadow::Tensor<xpu, 1, Dtype> outdatakOut = out_data[activation::kOut].FlatTo1D<xpu, Dtype>(s);
+      printTensor("relu outdatakOut", outdatakOut);
+      mshadow::Tensor<xpu, 1, Dtype> ingradkData = in_grad[activation::kData].FlatTo1D<xpu, Dtype>(s);
+      printTensor("relu ingradkData", ingradkData);
+
+    }
+#endif
 
 }
 
@@ -282,9 +337,9 @@ if (bwd_pd == nullptr) {
   bool in_place_;
   bool in_place_b_;
 
-  std::shared_ptr<MKLDNNData<Dtype> > fwd_top_data, fwd_bottom_data;
-  std::shared_ptr<MKLDNNData<Dtype> > bwd_bottom_data, bwd_top_diff;
-  std::shared_ptr<MKLDNNData<Dtype> > bwd_bottom_diff;
+  std::shared_ptr<MKLDNNData<DType> > fwd_top_data, fwd_bottom_data;
+  std::shared_ptr<MKLDNNData<DType> > bwd_bottom_data, bwd_top_diff;
+  std::shared_ptr<MKLDNNData<DType> > bwd_bottom_diff;
   std::shared_ptr<relu_forward::primitive_desc> fwd_inference_pd;
   std::shared_ptr<relu_forward::primitive_desc> fwd_training_pd;
   std::shared_ptr<relu_backward::primitive_desc> bwd_pd;
@@ -293,7 +348,7 @@ if (bwd_pd == nullptr) {
   std::shared_ptr<memory> input_primitive;
   std::shared_ptr<memory> output_memory;
   std::shared_ptr<memory> src_memory, diff_dst_memory, diff_src_memory;
-  MKLDNNPrimitive<Dtype> reluFwd, reluBwd;
+  MKLDNNPrimitive<DType> reluFwd, reluBwd;
 };  // class MKLDNNReluOp
 
 }  // namespace op

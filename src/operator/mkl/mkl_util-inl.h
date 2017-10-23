@@ -125,6 +125,49 @@ inline void mkl_set_tblob_eager_mode(const TBlob &data) {
     mem_holder->set_eager_mode(true);
   }
 }
+template<typename DType>
+inline void printTensor(const std::string& name, const DType* t, const size_t
+size) {
+  std::cout << name << " @" << t << " (" << size << "): ";
+  for (int i = 0; i < std::min(20, (int)size); ++i) {
+    std::cout << t[i] << " ";
+  }
+  std::cout << std::endl;
+};
+
+template<typename DType>
+inline void printTensorFormat(const std::string& name,
+                              std::shared_ptr<mxnet::MKLDNNData<DType>> mkldnn_data) {
+  std::cout << name << " FORM usr=" << mkldnn_data->usr_memory_pd()->desc().data.format
+            << " prv=" << mkldnn_data->prv_memory_pd()->desc().data.format << std::endl;
+};
+
+template<typename DType>
+inline void printBufferHead(const std::string& name, const TBlob& blob) {
+  std::shared_ptr<mxnet::MKLDNNData<DType>> mkldnn_data = get_mkldnn_prv_descriptor<DType>(blob);
+  if (mkldnn_data) {
+    std::cout << name << " HEAD (usr=" << blob.Mkl_mem_->head_at_cpu()
+              << " format=" << mkldnn_data->usr_memory_pd()->desc().data.format
+              << ") (prv=" << blob.Mkl_mem_->head_at_prv()
+              << " format=" << mkldnn_data->prv_memory_pd()->desc().data.format
+              << ")" << std::endl;
+  }
+  else {
+    std::cout << name << " HEAD (usr=" << blob.Mkl_mem_->head_at_cpu()
+              << " format=NA) (prv=" << blob.Mkl_mem_->head_at_prv()
+              << " format=NA)" << std::endl;
+  }
+};
+
+#define PRINT_TENSOR(BLOB, INDEX) \
+  { \
+    DType * tensorData = BLOB[INDEX].getSyncedCPUDataPtr<DType>(); \
+    printTensor(prefix + #BLOB + "." + #INDEX, tensorData, BLOB[INDEX].shape_.Size()); \
+  }
+
+#define PRINT_BUFFER_HEAD(BLOB, INDEX) \
+  { printBufferHead<DType>(prefix + #BLOB + "." + #INDEX, BLOB[INDEX]); }
+
 #endif
 }  // namespace mxnet
 #endif  // MXNET_OPERATOR_MKL_MKL_UTIL_INL_H_

@@ -168,64 +168,100 @@ class MKLDNNConvolutionOp : public Operator, public MKLDNNLayer<DType>,
                        const std::vector<OpReqType> &req,
                        const std::vector<TBlob> &out_data,
                        const std::vector<TBlob> &aux_args) {
-        using namespace mshadow;
-        using namespace mshadow::expr;
-        CHECK_EQ(req[conv::kOut], kWriteTo);
-        // size_t expected = this->param_.no_bias ? 2 : 3;
-        // CHECK_EQ(in_data.size(), expected);
-        CHECK_EQ(out_data.size(), 1);
-        Stream<xpu> *s = ctx.get_stream<xpu>();
-        Tensor<xpu, 4, DType> data =
-            mkl_experimental_direct_get<xpu, 4, DType>(in_data[conv::kData], s);
-        Tensor<xpu, 4, DType> out =
-            mkl_experimental_direct_get<xpu, 4, DType>(out_data[conv::kOut], s);
-        Tensor<xpu, 4, DType> wmat =
-            mkl_experimental_direct_get<xpu, 4, DType>(in_data[conv::kWeight], s);
-        CHECK_EQ(data.CheckContiguous(), true);
-        CHECK_EQ(wmat.CheckContiguous(), true);
-        CHECK_EQ(out.CheckContiguous(), true);
-        DType *data_ptr = data.dptr_;
-        DType *wmat_ptr = wmat.dptr_;
-        DType *out_ptr = out.dptr_;
-      if (convFwd_pd == NULL) {
-        if (!b_init_conv) {
-          this->init_properties(data, out);
-          this->b_init_conv = true;
-        }
-
-        InitForward(ctx);
-          // ---  init primitive and prv_memory descriptors ---------
-        fwd_bottom_data_primitive =
-          fwd_bottom_data->get_converted_prv(data_ptr, false, in_data[conv::kData]);
-        fwd_weights_data_primitive = fwd_weights_data->get_converted_prv(wmat_ptr, true,
-          in_data[conv::kWeight]);
-        if (!this->param_.no_bias) {
-          Tensor<xpu, 1, DType> bias = mkl_experimental_direct_get<xpu, 1, DType>(in_data[conv::kBias], s);
-          fwd_bias_data_primitive =
-            fwd_bias_data->get_converted_prv(bias.dptr_, true, in_data[conv::kBias]);
-        }
-        fwd_top_data_memory = fwd_top_data->create_output_memory(out_ptr, out_data[conv::kOut],
-          fwd_top_data);
-        if (!this->param_.no_bias) {
-          convFwd.reset(new convolution_forward(*convFwd_pd
-            , *fwd_bottom_data_primitive, *fwd_weights_data_primitive
-            , *fwd_bias_data_primitive, *fwd_top_data_memory));
-        } else {
-          convFwd.reset(new convolution_forward(*convFwd_pd
-            , *fwd_bottom_data_primitive, *fwd_weights_data_primitive
-            , *fwd_top_data_memory));
-        }
-      } else {
-          fwd_bottom_data->sync_converted_prv(data_ptr, false, in_data[conv::kData]);
-          fwd_weights_data->sync_converted_prv(wmat_ptr, true, in_data[conv::kWeight]);
-          if (!this->param_.no_bias) {
-              Tensor<xpu, 1, DType> bias = mkl_experimental_direct_get<xpu, 1, DType>(in_data[conv::kBias], s);
-              fwd_bias_data->sync_converted_prv(bias.dptr_, true, in_data[conv::kBias]);
-          }
-          fwd_top_data->sync_output_memory(out_data[conv::kOut],
-            fwd_top_data);
+    using namespace mshadow;
+    using namespace mshadow::expr;
+    CHECK_EQ(req[conv::kOut], kWriteTo);
+    // size_t expected = this->param_.no_bias ? 2 : 3;
+    // CHECK_EQ(in_data.size(), expected);
+    CHECK_EQ(out_data.size(), 1);
+#if 1
+    {
+      std::string prefix = "FWD-BEF CONV ";
+      PRINT_TENSOR(in_data, conv::kData);
+      PRINT_TENSOR(in_data, conv::kWeight);
+      PRINT_TENSOR(out_data, conv::kOut);
+      PRINT_BUFFER_HEAD(in_data, conv::kData);
+      PRINT_BUFFER_HEAD(in_data, conv::kWeight);
+      PRINT_BUFFER_HEAD(out_data, conv::kOut);
+    }
+#endif
+    Stream<xpu> *s = ctx.get_stream<xpu>();
+    Tensor<xpu, 4, DType> data =
+        mkl_experimental_direct_get<xpu, 4, DType>(in_data[conv::kData], s);
+    Tensor<xpu, 4, DType> out =
+        mkl_experimental_direct_get<xpu, 4, DType>(out_data[conv::kOut], s);
+    Tensor<xpu, 4, DType> wmat =
+        mkl_experimental_direct_get<xpu, 4, DType>(in_data[conv::kWeight], s);
+    CHECK_EQ(data.CheckContiguous(), true);
+    CHECK_EQ(wmat.CheckContiguous(), true);
+    CHECK_EQ(out.CheckContiguous(), true);
+    DType * data_ptr = data.dptr_;
+    DType * wmat_ptr = wmat.dptr_;
+    DType * out_ptr = out.dptr_;
+    if (convFwd_pd == NULL) {
+      if (!b_init_conv) {
+        this->init_properties(data, out);
+        this->b_init_conv = true;
       }
-      convFwd.submit();
+
+      InitForward(ctx);
+      // ---  init primitive and prv_memory descriptors ---------
+      fwd_bottom_data_primitive = fwd_bottom_data->get_converted_prv(data_ptr,
+                                                                     false,
+                                                                     in_data[conv::kData]);
+      fwd_weights_data_primitive = fwd_weights_data->get_converted_prv(wmat_ptr,
+                                                                       true,
+                                                                       in_data[conv::kWeight]);
+      if (!this->param_.no_bias) {
+        Tensor<xpu, 1, DType> bias =
+            mkl_experimental_direct_get<xpu, 1, DType>(in_data[conv::kBias], s);
+        fwd_bias_data_primitive = fwd_bias_data->get_converted_prv(bias.dptr_,
+                                                                   true,
+                                                                   in_data[conv::kBias]);
+      }
+      fwd_top_data_memory = fwd_top_data->create_output_memory(out_ptr,
+                                                               out_data[conv::kOut],
+                                                               fwd_top_data);
+      if (!this->param_.no_bias) {
+        convFwd.reset(new convolution_forward(*convFwd_pd,
+                                              *fwd_bottom_data_primitive,
+                                              *fwd_weights_data_primitive,
+                                              *fwd_bias_data_primitive,
+                                              *fwd_top_data_memory));
+      } else {
+        convFwd.reset(new convolution_forward(*convFwd_pd,
+                                              *fwd_bottom_data_primitive,
+                                              *fwd_weights_data_primitive,
+                                              *fwd_top_data_memory));
+      }
+    } else {
+      fwd_bottom_data->sync_converted_prv(data_ptr,
+                                          false,
+                                          in_data[conv::kData]);
+      fwd_weights_data->sync_converted_prv(wmat_ptr,
+                                           true,
+                                           in_data[conv::kWeight]);
+      if (!this->param_.no_bias) {
+        Tensor<xpu, 1, DType> bias =
+            mkl_experimental_direct_get<xpu, 1, DType>(in_data[conv::kBias], s);
+        fwd_bias_data->sync_converted_prv(bias.dptr_,
+                                          true,
+                                          in_data[conv::kBias]);
+      }
+      fwd_top_data->sync_output_memory(out_data[conv::kOut], fwd_top_data);
+    }
+    convFwd.submit();
+#if 1
+    {
+      std::string prefix = "FWD-AFT CONV ";
+      PRINT_TENSOR(in_data, conv::kData);
+      PRINT_TENSOR(in_data, conv::kWeight);
+      PRINT_TENSOR(out_data, conv::kOut);
+      PRINT_BUFFER_HEAD(in_data, conv::kData);
+      PRINT_BUFFER_HEAD(in_data, conv::kWeight);
+      PRINT_BUFFER_HEAD(out_data, conv::kOut);
+    }
+#endif
   }
   void InitConvolutionBwd(const OpContext &ctx,
     const std::vector<TBlob> &out_grad,
@@ -361,6 +397,32 @@ class MKLDNNConvolutionOp : public Operator, public MKLDNNLayer<DType>,
     if (param_.kernel.ndim() > 2) {
       LOG(FATAL) << "Volume convolution is not implmented in mshadow";
     }
+#if 0
+    {
+      auto printTensor = [] (const std::string& name, const mshadow::Tensor<xpu, 1, DType>& t) {
+          std::cout << "BEFORE " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
+          for (int i = 0; i < std::min(20, (int)t.size(0)); ++i) {
+            std::cout << t[i] << " ";
+          }
+          std::cout << std::endl;
+      };
+      mshadow::Stream <xpu> *s = ctx.get_stream<xpu>();
+      mshadow::Tensor<xpu, 1, DType> outgradkOut = out_grad[conv::kOut].FlatTo1D<xpu, DType>(s);
+      printTensor("conv outgradkOut", outgradkOut);
+      mshadow::Tensor<xpu, 1, DType> ingradkWeight = in_grad[conv::kWeight].FlatTo1D<xpu, DType>(s);
+      printTensor("conv ingradkWeight", ingradkWeight);
+      if (!param_.no_bias) {
+        mshadow::Tensor<xpu, 1, DType> ingradkBias = in_grad[conv::kBias].FlatTo1D<xpu, DType>(s);
+        printTensor("conv ingradkBias", ingradkBias);
+      }
+      mshadow::Tensor<xpu, 1, DType> ingradkData = in_grad[conv::kData].FlatTo1D<xpu, DType>(s);
+      printTensor("conv ingradkData", ingradkData);
+      mshadow::Tensor<xpu, 1, DType> indatakData = in_data[conv::kData].FlatTo1D<xpu, DType>(s);
+      printTensor("conv indatakData", indatakData);
+      mshadow::Tensor<xpu, 1, DType> indatakWeight = in_data[conv::kWeight].FlatTo1D<xpu, DType>(s);
+      printTensor("conv indatakWeight", indatakWeight);
+    }
+#endif
     CHECK_EQ(out_grad.size(), 1);
     size_t expected = param_.no_bias == 0 ? 3 : 2;
     CHECK(in_data.size() == expected && in_grad.size() == expected);
@@ -462,6 +524,22 @@ class MKLDNNConvolutionOp : public Operator, public MKLDNNLayer<DType>,
         if (!this->param_.no_bias) 
           bwdw_bias_diff->sync_output_memory(in_grad[conv::kBias], bwdw_bias_diff);
       }
+#if 0
+      {
+        auto printTensor = [](const std::string &name, const mshadow::Tensor<xpu, 1, DType> &t) {
+            std::cout << "submit " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
+            for (int i = 0; i < std::min(20, (int) t.size(0)); ++i) {
+              std::cout << t[i] << " ";
+            }
+            std::cout << std::endl;
+        };
+        mshadow::Stream<xpu> *s = ctx.get_stream<xpu>();
+        mshadow::Tensor<xpu, 1, DType> ingradkWeight = in_grad[conv::kWeight].FlatTo1D<xpu, DType>(s);
+        printTensor("conv ingradkWeight", ingradkWeight);
+        mshadow::Tensor<xpu, 1, DType> ingradkBias = in_grad[conv::kBias].FlatTo1D<xpu, DType>(s);
+        printTensor("conv ingradkBias", ingradkBias);
+      }
+#endif
       convBwdWeights.submit();
       if (req[1] == kAddTo) {
         if (bwdw_weights_diff->conversion_needed()) {
@@ -471,7 +549,34 @@ class MKLDNNConvolutionOp : public Operator, public MKLDNNLayer<DType>,
           in_grad[conv::kWeight].Size());
       }
     }
-}
+
+#if 0
+    {
+      auto printTensor = [] (const std::string& name, const mshadow::Tensor<xpu, 1, DType>& t) {
+          std::cout << "AFTER " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
+          for (int i = 0; i < std::min(20, (int)t.size(0)); ++i) {
+            std::cout << t[i] << " ";
+          }
+          std::cout << std::endl;
+      };
+      mshadow::Stream <xpu> *s = ctx.get_stream<xpu>();
+      mshadow::Tensor<xpu, 1, DType> outgradkOut = out_grad[conv::kOut].FlatTo1D<xpu, DType>(s);
+      printTensor("conv outgradkOut", outgradkOut);
+      mshadow::Tensor<xpu, 1, DType> ingradkWeight = in_grad[conv::kWeight].FlatTo1D<xpu, DType>(s);
+      printTensor("conv ingradkWeight", ingradkWeight);
+      if (!param_.no_bias) {
+        mshadow::Tensor<xpu, 1, DType> ingradkBias = in_grad[conv::kBias].FlatTo1D<xpu, DType>(s);
+        printTensor("conv ingradkBias", ingradkBias);
+      }
+      mshadow::Tensor<xpu, 1, DType> ingradkData = in_grad[conv::kData].FlatTo1D<xpu, DType>(s);
+      printTensor("conv ingradkData", ingradkData);
+      mshadow::Tensor<xpu, 1, DType> indatakData = in_data[conv::kData].FlatTo1D<xpu, DType>(s);
+      printTensor("conv indatakData", indatakData);
+      mshadow::Tensor<xpu, 1, DType> indatakWeight = in_data[conv::kWeight].FlatTo1D<xpu, DType>(s);
+      printTensor("conv indatakWeight", indatakWeight);
+    }
+#endif
+  }
 
  private:
   std::shared_ptr<MKLDNNData<DType> > fwd_bottom_data, fwd_top_data,
