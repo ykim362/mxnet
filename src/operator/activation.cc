@@ -39,20 +39,11 @@ namespace mxnet {
 namespace op {
 template<>
 Operator *CreateOp<cpu>(ActivationParam param, int dtype, const TShape& dshape) {
-#if 1
-  {
-    LOG(INFO) << __FUNCTION__;
-  }
-#endif
   Operator *op = NULL;
 #if MXNET_USE_MKLDNN == 1
-  // XXX lfeng: these data types mapped to float is a bug?
   if (param.act_type == activation::kReLU) {
     switch (dtype) {
     case mshadow::kFloat32:
-    case mshadow::kInt8:
-    case mshadow::kInt32:
-    case mshadow::kUint8:
       return new MKLDNNReluOp<cpu, float>();
     default:
       break;
@@ -70,7 +61,7 @@ Operator *CreateOp<cpu>(ActivationParam param, int dtype, const TShape& dshape) 
           break;
       }
   }
-  if (enableMKLWarnGenerated())
+  if (EnableMklWarnGenerated())
     LOG(INFO) << MKLReluOp<cpu, float>::getName() << " Skip MKL optimization";
 #endif
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {

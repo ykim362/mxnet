@@ -40,11 +40,6 @@ DMLC_REGISTER_PARAMETER(ElementWiseSumParam);
 std::vector<nnvm::NodeEntry> ElementWiseSumGrad(
     const nnvm::NodePtr& n,
     const std::vector<nnvm::NodeEntry>& ograds) {
-#if 1
-  {
-    LOG(INFO) << __FUNCTION__;
-  }
-#endif
   // identity constraints in the beginning for easier shape inference.
   const nnvm::Op* copy_op =
       nnvm::Op::Get("identity");
@@ -77,13 +72,14 @@ bool ElementWiseSumType(const nnvm::NodeAttrs& attrs,
 }
 
 bool ElementWiseSumForwardInferStorageType(const nnvm::NodeAttrs& attrs,
-                                           const Context& ctx,
+                                           const int dev_mask,
+                                           DispatchMode* dispatch_mode,
                                            std::vector<int> *in_attrs,
                                            std::vector<int> *out_attrs) {
   CHECK(!in_attrs->empty());
   CHECK_EQ(out_attrs->size(), 1U);
-  return ElemwiseStorageAttr<int, type_is_none, type_assign, false, true>(
-      attrs, in_attrs, out_attrs);
+  return ElemwiseStorageAttr<false, true, false>(attrs, dev_mask, dispatch_mode,
+                                                 in_attrs, out_attrs);
 }
 
 void ElementWiseSumComputeExCPU(const nnvm::NodeAttrs& attrs,
@@ -91,11 +87,6 @@ void ElementWiseSumComputeExCPU(const nnvm::NodeAttrs& attrs,
                                 const std::vector<NDArray>& inputs,
                                 const std::vector<OpReqType>& req,
                                 const std::vector<NDArray>& outputs) {
-#if 1
-  {
-    LOG(INFO) << __FUNCTION__;
-  }
-#endif
   CHECK(!inputs.empty());
   CHECK_EQ(outputs.size(), 1U);
   CHECK_EQ(req.size(), 1U);
@@ -108,8 +99,7 @@ void ElementWiseSumComputeExCPU(const nnvm::NodeAttrs& attrs,
     NDArray out_nd = outputs[0];
     mxnet::ndarray::ElementwiseSum<cpu>(s, rsc, inputs, &out_nd);
   } else {
-    FCompExFallback<cpu>(attrs, op_ctx, inputs, req, outputs,
-                         ElementWiseSumCompute<cpu>, "ElementWiseSumCompute<cpu>");
+    LOG(FATAL) << "Not implemented: " << operator_string(attrs, op_ctx, inputs, req, outputs);
   }
 }
 

@@ -47,11 +47,6 @@ Operator* CreateOp<cpu>(ConvolutionParam param, int dtype,
                         std::vector<TShape> *in_shape,
                         std::vector<TShape> *out_shape,
                         Context ctx) {
-#if 1
-  {
-    LOG(INFO) << __FUNCTION__;
-  }
-#endif
   Operator *op = NULL;
   // If 1D convolution, use MXNet implementation
   if (param.kernel.ndim() == 1) {
@@ -70,7 +65,7 @@ Operator* CreateOp<cpu>(ConvolutionParam param, int dtype,
             break;
         }
     }
-    if (enableMKLDNNWarnGenerated())
+    if (EnableMkldnnWarnGenerated())
       LOG(INFO) << "MKLDNNConvolutionOp Skip MKL DNN optimization";
 #endif
 #if MXNET_USE_MKL2017 == 1

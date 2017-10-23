@@ -91,12 +91,9 @@ struct MKLMemHolder {
     return (head_ == HEAD_AT_PRV);
   }
   void* prv_data(bool allocate_when_uninit = true) {
-    // XXX lfeng: why do we want to check this? if head_ is not at
-    // HEAD_AT_PRV can we still have valid prv pointer?
     if (head_ != HEAD_AT_PRV) {
       return NULL;
     }
-    // XXX lfeng: this and the following CHECK() are checking the same thing?
     if (prv_descriptor_ == NULL) {
       LOG(FATAL) << " prv_descriptor_  is NULL";
     }
@@ -105,12 +102,9 @@ struct MKLMemHolder {
   }
 
   int prv_count() {
-    // XXX lfeng: why is this check needed?
     if (head_ != HEAD_AT_PRV) {
       return 0;
     }
-
-    // XXX lfeng: same as the CHECK afterward, don't need both?
     if (prv_descriptor_ == NULL) {
       LOG(FATAL) << " prv_descriptor_  is NULL";
     }
@@ -149,9 +143,6 @@ struct MKLMemHolder {
     head_(HEAD_AT_CPU), prv_descriptor_(nullptr),
     b_disable_prv_2_cpu(false), b_eager_mode(false) {}
 };
-
-// bool compare_mkl_memholder(std::shared_ptr<MKLMemHolder> holder_a,
-//   std::shared_ptr<MKLMemHolder> holder_b);
 
 #else
 struct MKLMemHolder {

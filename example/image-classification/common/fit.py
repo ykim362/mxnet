@@ -105,10 +105,6 @@ def add_fit_args(parser):
                        help='precision: float32 or float16')
     return train
 
-def endBatch(endbatch, freq=50, autoreset=True):
-    #print "finished", endbatch
-    if endbatch[1] > 0:
-        exit()
 def fit(args, network, data_loader, **kwargs):
     """
     train a model
@@ -168,11 +164,8 @@ def fit(args, network, data_loader, **kwargs):
     optimizer_params = {
             'learning_rate': lr,
             'wd' : args.wd,
-            'lr_scheduler': lr_scheduler}
-
-    # Add 'multi_precision' parameter only for SGD optimizer
-    if args.optimizer == 'sgd':
-        optimizer_params['multi_precision'] = True
+            'lr_scheduler': lr_scheduler,
+            'multi_precision': True}
 
     # Only a limited number of optimizers have 'momentum' property
     has_momentum = {'sgd', 'dcasgd', 'nag'}
@@ -212,8 +205,7 @@ def fit(args, network, data_loader, **kwargs):
         initializer        = initializer,
         arg_params         = arg_params,
         aux_params         = aux_params,
-        #batch_end_callback = batch_end_callbacks,
-        batch_end_callback = endBatch,
+        batch_end_callback = batch_end_callbacks,
         epoch_end_callback = checkpoint,
         allow_missing      = True,
         monitor            = monitor)
