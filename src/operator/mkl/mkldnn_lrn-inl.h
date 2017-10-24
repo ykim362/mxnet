@@ -36,15 +36,15 @@
 namespace mxnet {
 namespace op {
 
-template<typename xpu, typename Dtype>
-class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
+template<typename xpu, typename DType>
+class MKLDNNLRNOp : public Operator, public MKLDNNLayer<DType> {
  public:
   std::string getName() {
     return "MKLDNNLRNOp";
   }
 
   explicit MKLDNNLRNOp(LRNParam param) :
-    MKLDNNLayer<Dtype>()
+    MKLDNNLayer<DType>()
     , fwd_bottom_data(NULL), fwd_top_data(NULL)
     , bwd_bottom_diff(NULL), bwd_top_diff(NULL)
     , lrnFwdInference_pd(NULL), lrnBwd_pd(NULL)
@@ -59,7 +59,7 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
   }
 
  private:
-  void LayerSetup(const mshadow::Tensor<xpu, 4, Dtype> &data) {
+  void LayerSetup(const mshadow::Tensor<xpu, 4, DType> &data) {
     size_ = param_.nsize;
     CHECK_EQ(size_ % 2, 1) << "LRN only supports odd values for local size";
     alpha_ = param_.alpha;
@@ -77,7 +77,7 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     int32_t ic = this->channels_;
 
     bool bottom_data_is_prv =
-      (const_cast<Dtype*>(mkl_prv_data<Dtype>(in_data[lrn_enum::kData])) != NULL);
+      (const_cast<DType*>(mkl_prv_data<DType>(in_data[lrn_enum::kData])) != NULL);
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
     memory::data_type mpcsn = memory::data_type::f32;
     // ---- Initialize memory descriptors -------------
@@ -85,8 +85,8 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     std::shared_ptr<memory::desc> bottom_md, top_md;
     std::shared_ptr<memory::primitive_desc> usr_mpd, prv_mpd;
     if (bottom_data_is_prv) {
-      std::shared_ptr<MKLDNNData<Dtype> > mem_descr
-        = get_mkldnn_prv_descriptor<Dtype>(in_data[lrn_enum::kData].Mkl_mem_);
+      std::shared_ptr<MKLDNNData<DType> > mem_descr
+        = get_mkldnn_prv_descriptor<DType>(in_data[lrn_enum::kData].Mkl_mem_);
       bottom_md.reset(new memory::desc(mem_descr->prv_memory_pd()->desc()));
       usr_mpd = mem_descr->usr_memory_pd();
       prv_mpd = mem_descr->prv_memory_pd();
@@ -119,9 +119,9 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     std::shared_ptr<MemPD> usr_data_memory_pd(new MemPD({ { tz }, mpcsn, mfmt_nchw }, cpu_engine));
 
     // ---  init primitive and prv_memory descriptors ----------------------
-    fwd_bottom_data.reset(new MKLDNNData<Dtype>(usr_data_memory_pd, prv_fwd_bottom_data_memory_pd));
+    fwd_bottom_data.reset(new MKLDNNData<DType>(usr_data_memory_pd, prv_fwd_bottom_data_memory_pd));
     fwd_bottom_data->name = "fwd_bottom_data   @ " + this->getName();
-    fwd_top_data.reset(new MKLDNNData<Dtype>(usr_mpd, prv_fwd_top_data_memory_pd));
+    fwd_top_data.reset(new MKLDNNData<DType>(usr_mpd, prv_fwd_top_data_memory_pd));
     fwd_top_data->name = "fwd_top_data   @ " + this->getName();
   }
 
@@ -137,9 +137,9 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     CHECK_EQ(out_data.size(), 2);
     CHECK_EQ(param_.nsize % 2, 1) << "LRN only supports odd values for local_size";
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    Tensor<xpu, 4, Dtype> data = mkl_experimental_direct_get<xpu, 4, Dtype>(
+    Tensor<xpu, 4, DType> data = mkl_experimental_direct_get<xpu, 4, DType>(
       in_data[lrn_enum::kData], s);
-    Tensor<xpu, 4, Dtype> out = mkl_experimental_direct_get<xpu, 4, Dtype>(
+    Tensor<xpu, 4, DType> out = mkl_experimental_direct_get<xpu, 4, DType>(
       out_data[lrn_enum::kOut], s);
     if (!init_mkldnn_) {
       LayerSetup(data);
@@ -148,7 +148,7 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     if (lrnFwdInference_pd == NULL) {
       InitLRNFwd(in_data);
     }
-    MKLDNNPrimitive<Dtype> lrnFwd;
+    MKLDNNPrimitive<DType> lrnFwd;
     fwd_bottom_data_primitive =
       fwd_bottom_data->get_converted_prv(data.dptr_, false, in_data[lrn_enum::kData]);
     std::shared_ptr<memory> fwd_top_data_memory = fwd_top_data->create_output_memory(
@@ -170,7 +170,7 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     int32_t ih = this->height_;
     int32_t ic = this->channels_;
     void * top_diff_data =
-      const_cast<Dtype*>(mkl_prv_data<Dtype>(out_grad[lrn_enum::kOut]));
+      const_cast<DType*>(mkl_prv_data<DType>(out_grad[lrn_enum::kOut]));
     bool top_diff_is_prv = (top_diff_data != NULL);
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
     memory::data_type mpcsn = memory::data_type::f32;
@@ -179,8 +179,8 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     std::shared_ptr<memory::desc> bottom_diff_md, top_diff_md;
     std::shared_ptr<memory::primitive_desc> usr_diff_mpd, prv_diff_mpd;
     if (top_diff_is_prv) {
-      std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > mem_descr
-        = get_mkldnn_prv_descriptor<Dtype>(out_grad[lrn_enum::kOut].Mkl_mem_);
+      std::shared_ptr<MKLDNNMemoryDescriptor<DType> > mem_descr
+        = get_mkldnn_prv_descriptor<DType>(out_grad[lrn_enum::kOut].Mkl_mem_);
       top_diff_md.reset(new memory::desc(mem_descr->prv_memory_pd()->desc()));
       usr_diff_mpd = mem_descr->usr_memory_pd();
       prv_diff_mpd = mem_descr->prv_memory_pd();
@@ -211,9 +211,9 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     std::shared_ptr<MemPD> usr_data_memory_pd(new MemPD({ { tz }, mpcsn, mfmt_nchw }, cpu_engine));
 
     // ---  init primitive and prv_memory descriptors ----------------------
-    bwd_bottom_diff.reset(new MKLDNNData<Dtype>(usr_data_memory_pd, prv_bwd_bottom_diff_memory_pd));
+    bwd_bottom_diff.reset(new MKLDNNData<DType>(usr_data_memory_pd, prv_bwd_bottom_diff_memory_pd));
     bwd_bottom_diff->name = "bwd_bottom_diff_data   @ " + this->getName();
-    bwd_top_diff.reset(new MKLDNNData<Dtype>(usr_diff_mpd, prv_bwd_top_diff_memory_pd));
+    bwd_top_diff.reset(new MKLDNNData<DType>(usr_diff_mpd, prv_bwd_top_diff_memory_pd));
     bwd_top_diff->name = "bwd_top_diff_data   @ " + this->getName();
   }
   virtual void Backward(const OpContext &ctx,
@@ -229,15 +229,15 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
     CHECK_EQ(in_data.size(), 1);
     CHECK_EQ(out_data.size(), 2);
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    Tensor<xpu, 4, Dtype> grad = mkl_experimental_direct_get<xpu, 4, Dtype>(
+    Tensor<xpu, 4, DType> grad = mkl_experimental_direct_get<xpu, 4, DType>(
       out_grad[lrn_enum::kOut], s);
-    Tensor<xpu, 4, Dtype> data = mkl_experimental_direct_get<xpu, 4, Dtype>(
+    Tensor<xpu, 4, DType> data = mkl_experimental_direct_get<xpu, 4, DType>(
       in_data[lrn_enum::kData], s);
-    Tensor<xpu, 4, Dtype> grad_in = mkl_experimental_direct_get<xpu, 4, Dtype>(
+    Tensor<xpu, 4, DType> grad_in = mkl_experimental_direct_get<xpu, 4, DType>(
       in_grad[lrn_enum::kData], s);
     if (lrnBwd_pd == NULL)
       InitLRNBwd(out_grad);
-    MKLDNNPrimitive<Dtype> lrnBwd;
+    MKLDNNPrimitive<DType> lrnBwd;
     std::shared_ptr<memory> bwd_bottom_diff_memory;
     std::shared_ptr<primitive> bwd_top_diff_primitive;
     bwd_top_diff_primitive =
@@ -252,14 +252,14 @@ class MKLDNNLRNOp : public Operator, public MKLDNNLayer<Dtype> {
  private:
   LRNParam param_;
   bool init_mkldnn_;
-  std::shared_ptr<MKLDNNData<Dtype> > fwd_top_data, fwd_bottom_data,
+  std::shared_ptr<MKLDNNData<DType> > fwd_top_data, fwd_bottom_data,
     bwd_top_diff, bwd_bottom_diff;
   std::shared_ptr<lrn_forward::primitive_desc> lrnFwdInference_pd;
   std::shared_ptr<lrn_forward::primitive_desc> lrnFwdTraining_pd;
   std::shared_ptr<lrn_backward::primitive_desc> lrnBwd_pd;
   std::shared_ptr<primitive> fwd_bottom_data_primitive;
   std::shared_ptr<memory> scratch_memory;
-  Dtype alpha_, beta_, k_;
+  DType alpha_, beta_, k_;
   int size_, num_, width_, height_, channels_;
   algorithm  lrn_algorithm;
 };  // class LocalResponseNormOp

@@ -49,11 +49,24 @@ struct PrvMemDescr {
 #if MKL_EXPERIMENTAL == 1 || MXNET_USE_MKLDNN == 1
 // Currently HEAD_AT_PRV do not free CPU data
 enum SyncedHead {
+  ///  most recent data is in the cpu/usr buffer
   HEAD_AT_CPU,
+  ///  most recent data is in the prv buffer
   HEAD_AT_PRV,
 };
 struct MKLMemHolder {
+
+  /**
+   * This flag indicates where the most recent (or valid) data is. We
+   * essentially have two pointers, one inside TBlob: dptr_, one inside
+   * MKLDNNMemoryDescriptorBase: _internal_ptr. Depending how we read/write to
+   * these buffers, we need to update this flag to point to the valid buffer.
+   */
   SyncedHead head_;
+  /**
+   * prv_descriptor_ provides access to the underlying prv data buffer and its
+   * layout descriptors. We keep track of both usr/cpu and prv data descriptor.
+   */
   std::shared_ptr<PrvMemDescr> prv_descriptor_;
   bool  b_disable_prv_2_cpu;
   bool  b_eager_mode;
@@ -71,10 +84,10 @@ struct MKLMemHolder {
     return  prv_descriptor_;
   }
   bool head_at_cpu() {
-    return (head_ == HEAD_AT_CPU) ? true : false;
+    return (head_ == HEAD_AT_CPU);
   }
   bool head_at_prv() {
-    return (head_ == HEAD_AT_PRV) ? true : false;
+    return (head_ == HEAD_AT_PRV);
   }
   void* prv_data(bool allocate_when_uninit = true) {
     if (head_ != HEAD_AT_PRV) {
@@ -84,7 +97,7 @@ struct MKLMemHolder {
       LOG(FATAL) << " prv_descriptor_  is NULL";
     }
     CHECK(prv_descriptor_.get());
-    return reinterpret_cast<void*>(prv_descriptor_->prv_ptr(allocate_when_uninit));
+    return prv_descriptor_->prv_ptr(allocate_when_uninit);
   }
 
   int prv_count() {
@@ -100,6 +113,18 @@ struct MKLMemHolder {
   static std::shared_ptr<MKLMemHolder> create() {
     return std::make_shared<MKLMemHolder>();
   }
+
+  /**
+   * Verify we have a valid prv descriptor and if prv has the latest data
+   * convert to cpu and update head_ to point to HEAD_AT_CPU. This is
+   * intended to convert data to CPU and use/modify the cpu dptr_ buffer.
+   * After this operation, to access prv data, one needs to explicitly
+   * update/convert from cpu to prv.
+   * data.
+   * @param dptr_ cpu pointer to data buffer where prv data will be converted
+   * to.
+   * @param convert 
+   */
   void  check_and_prv_to_cpu(void *dptr_, bool convert = true) {
     if (!b_disable_prv_2_cpu && head_ == HEAD_AT_PRV) {
       CHECK(prv_descriptor_ != nullptr);

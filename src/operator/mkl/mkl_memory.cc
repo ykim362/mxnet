@@ -28,28 +28,28 @@
 
 namespace mxnet {
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::create_conversions() {
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::create_conversions() {
   int status;
   if (this->convert_from_int) {
-    status = dnnDelete<Dtype>(this->convert_from_int);
+    status = dnnDelete<DType>(this->convert_from_int);
     CHECK_EQ(status, E_SUCCESS);
     this->convert_from_int = NULL;
   }
   if (this->convert_to_int) {
-    status = dnnDelete<Dtype>(this->convert_to_int);
+    status = dnnDelete<DType>(this->convert_to_int);
     CHECK_EQ(status, E_SUCCESS);
     this->convert_to_int = NULL;
   }
   if (layout_int
-      && !dnnLayoutCompare<Dtype>(layout_usr, layout_int)) {
+      && !dnnLayoutCompare<DType>(layout_usr, layout_int)) {
     CHECK(layout_usr);
-    status = dnnConversionCreate<Dtype>(&convert_to_int, layout_usr,
+    status = dnnConversionCreate<DType>(&convert_to_int, layout_usr,
             layout_int);
     CHECK_EQ(status, E_SUCCESS)
             << "Failed creation convert_to_int with status "
             << status << " for buffer: " << this->name << "\n";
-    status = dnnConversionCreate<Dtype>(&convert_from_int, layout_int,
+    status = dnnConversionCreate<DType>(&convert_from_int, layout_int,
             layout_usr);
     CHECK_EQ(status, E_SUCCESS)
             << "Failed creation convert_from_int with status "
@@ -57,15 +57,15 @@ void MKLMemoryDescriptorBase<Dtype>::create_conversions() {
   }
 }
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::create_internal_layout(
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::create_internal_layout(
     const dnnPrimitive_t primitive, dnnResourceType_t type) {
   int status;
   if (this->layout_int) {
-    status = dnnLayoutDelete<Dtype>(this->layout_int);
+    status = dnnLayoutDelete<DType>(this->layout_int);
     CHECK_EQ(status, E_SUCCESS);
   }
-  status = dnnLayoutCreateFromPrimitive<Dtype>(
+  status = dnnLayoutCreateFromPrimitive<DType>(
       &this->layout_int, primitive, type);
   CHECK_EQ(status, E_SUCCESS)
       << "Failed dnnLayoutCreateFromPrimitive with status "
@@ -75,16 +75,16 @@ void MKLMemoryDescriptorBase<Dtype>::create_internal_layout(
     this->create_conversions();
 }
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::create_user_layout(
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::create_user_layout(
     size_t dimension, const size_t size[], const size_t strides[]) {
   int status;
   if (this->layout_usr) {
-    status = dnnLayoutDelete<Dtype>(this->layout_usr);
+    status = dnnLayoutDelete<DType>(this->layout_usr);
     CHECK_EQ(status, E_SUCCESS);
   }
 
-  status = dnnLayoutCreate<Dtype>(
+  status = dnnLayoutCreate<DType>(
       &this->layout_usr, dimension, size, strides);
   CHECK_EQ(status, E_SUCCESS) << "Failed dnnLayoutCreate with status "
       << status << " for buffer: " << this->name << "\n";
@@ -93,8 +93,8 @@ void MKLMemoryDescriptorBase<Dtype>::create_user_layout(
     this->create_conversions();
 }
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::create_layouts(
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::create_layouts(
     const dnnPrimitive_t primitive, dnnResourceType_t type,
     size_t dimension, const size_t size[], const size_t strides[]) {
   this->create_internal_layout(primitive, type);
@@ -102,8 +102,8 @@ void MKLMemoryDescriptorBase<Dtype>::create_layouts(
 }
 
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::convert_from_prv(void* cpu_ptr) {
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::convert_from_prv(void* cpu_ptr) {
   CHECK(cpu_ptr);
   CHECK(this->convert_from_int);
   int status;
@@ -111,12 +111,12 @@ void MKLMemoryDescriptorBase<Dtype>::convert_from_prv(void* cpu_ptr) {
 
   convert_resources[dnnResourceFrom] = this->prv_ptr();
   convert_resources[dnnResourceTo]   = cpu_ptr;
-  status = dnnExecute<Dtype>(this->convert_from_int, convert_resources);
+  status = dnnExecute<DType>(this->convert_from_int, convert_resources);
   CHECK_EQ(status, 0) << "Conversion from prv failed with status " << status;
 }
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::convert_to_prv(void* cpu_ptr) {
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::convert_to_prv(void* cpu_ptr) {
   CHECK(cpu_ptr);
   CHECK(this->convert_to_int);
   int status;
@@ -124,61 +124,61 @@ void MKLMemoryDescriptorBase<Dtype>::convert_to_prv(void* cpu_ptr) {
 
   convert_resources[dnnResourceFrom] = cpu_ptr;
   convert_resources[dnnResourceTo]   = this->prv_ptr();
-  status = dnnExecute<Dtype>(this->convert_to_int, convert_resources);
+  status = dnnExecute<DType>(this->convert_to_int, convert_resources);
   CHECK_EQ(status, 0) << "Conversion from prv failed with status " << status;
 }
 
 
-template <typename Dtype>
-bool MKLMemoryDescriptorBase<Dtype>::layout_compare(
+template <typename DType>
+bool MKLMemoryDescriptorBase<DType>::layout_compare(
   std::shared_ptr<PrvMemDescr> other) {
   CHECK_EQ(other->get_descr_type(),
               PrvMemDescr::PRV_DESCR_MKL2017);
-  std::shared_ptr<MKLMemoryDescriptorBase<Dtype> >other_descr =
-    std::static_pointer_cast<MKLMemoryDescriptorBase<Dtype> >
+  std::shared_ptr<MKLMemoryDescriptorBase<DType> >other_descr =
+    std::static_pointer_cast<MKLMemoryDescriptorBase<DType> >
     (other);
 
-  if (dnnLayoutCompare<Dtype>(other_descr->layout_int,
+  if (dnnLayoutCompare<DType>(other_descr->layout_int,
       this->layout_int))
     return true;
   else
     return false;
 }
 
-template <typename Dtype>
-void MKLMemoryDescriptorBase<Dtype>::convert_from_other(
+template <typename DType>
+void MKLMemoryDescriptorBase<DType>::convert_from_other(
   std::shared_ptr<PrvMemDescr> other) {
-    std::shared_ptr<MKLMemoryDescriptorBase<Dtype> > other_descr =
-        std::static_pointer_cast<MKLMemoryDescriptorBase<Dtype> >
+    std::shared_ptr<MKLMemoryDescriptorBase<DType> > other_descr =
+        std::static_pointer_cast<MKLMemoryDescriptorBase<DType> >
             (other);
 
   int status;
   dnnPrimitive_t convert;
-  status = dnnConversionCreate<Dtype>(&convert,
+  status = dnnConversionCreate<DType>(&convert,
     other_descr->layout_int, this->layout_int);
 
   void *convert_resources[dnnResourceNumber];
   convert_resources[dnnResourceFrom] = other_descr->prv_ptr();
   convert_resources[dnnResourceTo]   = this->prv_ptr();
-  status = dnnExecute<Dtype>(convert, convert_resources);
+  status = dnnExecute<DType>(convert, convert_resources);
   CHECK_EQ(status, 0) << "Conversion from other failed with status "
                       << status;
 
-  dnnDelete<Dtype>(convert);
+  dnnDelete<DType>(convert);
 }
 
 
-template <typename Dtype>
-Dtype* MKLMemoryDescriptor<Dtype>::get_converted_prv(
-    Dtype *cpu_ptr, bool set_prv_ptr, const TBlob &blob) {
-  Dtype* prv_ptr = NULL;
+template <typename DType>
+DType* MKLMemoryDescriptor<DType>::get_converted_prv(
+    DType *cpu_ptr, bool set_prv_ptr, const TBlob &blob) {
+  DType* prv_ptr = NULL;
   std::shared_ptr<MKLMemHolder> dnn_chunk = NULL;
 #if MKL_EXPERIMENTAL == 1
   dnn_chunk = blob.Mkl_mem_;
 #endif
 #if MKL_EXPERIMENTAL == 1
   if (dnn_chunk != NULL)
-    prv_ptr = static_cast<Dtype*>(dnn_chunk->prv_data());
+    prv_ptr = static_cast<DType*>(dnn_chunk->prv_data());
 #endif
 
   if (this->convert_to_int != NULL) {
@@ -198,17 +198,17 @@ Dtype* MKLMemoryDescriptor<Dtype>::get_converted_prv(
     }
 #if MKL_EXPERIMENTAL == 1
     if (prv_ptr != NULL)  {
-      std::shared_ptr<MKLData<Dtype> > current_descr =
-        op::mkl_get_mem_desc<Dtype>(dnn_chunk);
-      if (!dnnLayoutCompare<Dtype>(current_descr->layout_int,
+      std::shared_ptr<MKLData<DType> > current_descr =
+        op::mkl_get_mem_desc<DType>(dnn_chunk);
+      if (!dnnLayoutCompare<DType>(current_descr->layout_int,
         this->layout_int)) {
         if (this->convert_prv2prv) {
-          CHECK_EQ(dnnLayoutCompare<Dtype>(
+          CHECK_EQ(dnnLayoutCompare<DType>(
             this->descr_prv2prv_conversion->layout_int,
             this->layout_int), 0);
           status = 0;
         } else {
-          status = dnnConversionCreate<Dtype>(&this->convert_prv2prv,
+          status = dnnConversionCreate<DType>(&this->convert_prv2prv,
             current_descr->layout_int, this->layout_int);
           if (status == 0)
             this->descr_prv2prv_conversion = current_descr;
@@ -218,14 +218,14 @@ Dtype* MKLMemoryDescriptor<Dtype>::get_converted_prv(
           convert_resources[dnnResourceFrom] = cpu_ptr;
           convert_resources[dnnResourceTo] =
             reinterpret_cast<void*>(this->internal_ptr);
-          status = dnnExecute<Dtype>(this->convert_to_int, convert_resources);
+          status = dnnExecute<DType>(this->convert_to_int, convert_resources);
           CHECK_EQ(status, 0) << "Conversion failed with status " << status;
         } else {
           this->allocate();
           convert_resources[dnnResourceFrom] = reinterpret_cast<void*>(prv_ptr);
           convert_resources[dnnResourceTo] =
             reinterpret_cast<void*>(this->internal_ptr);
-          status = dnnExecute<Dtype>(this->convert_prv2prv, convert_resources);
+          status = dnnExecute<DType>(this->convert_prv2prv, convert_resources);
           CHECK_EQ(status, 0) << "Conversion failed with status " << status;
         }
         if (set_prv_ptr) {
@@ -238,7 +238,7 @@ Dtype* MKLMemoryDescriptor<Dtype>::get_converted_prv(
       }
     }
 #endif
-    return const_cast<Dtype *>(prv_ptr);
+    return const_cast<DType *>(prv_ptr);
   } else {
     if (prv_ptr != NULL) {
 #if MKL_EXPERIMENTAL == 1
@@ -253,9 +253,9 @@ Dtype* MKLMemoryDescriptor<Dtype>::get_converted_prv(
   return cpu_ptr;
 }
 
-template <typename Dtype>
-void* MKLMemoryDescriptor<Dtype>::get_output_ptr(Dtype *data_ptr,
-  std::shared_ptr<MKLMemoryDescriptor<Dtype> > self_ptr, const TBlob &blob, bool in_place) {
+template <typename DType>
+void* MKLMemoryDescriptor<DType>::get_output_ptr(DType *data_ptr,
+  std::shared_ptr<MKLMemoryDescriptor<DType> > self_ptr, const TBlob &blob, bool in_place) {
 #if MKL_EXPERIMENTAL == 1
   std::shared_ptr<MKLMemHolder> dnn_chunk = blob.Mkl_mem_;
 #endif
@@ -265,7 +265,7 @@ void* MKLMemoryDescriptor<Dtype>::get_output_ptr(Dtype *data_ptr,
     if (!in_place) {
       dnn_chunk->set_prv_descriptor(self_ptr);
     } else {
-      Dtype * blob_prv = op::mkl_prv_data<Dtype>(blob);
+      DType * blob_prv = op::mkl_prv_data<DType>(blob);
       if (blob_prv != NULL)
         return blob_prv;
     }

@@ -110,7 +110,7 @@ class StreamHolder {
 };
 
 // =====  MKLDNNLayer =======================================
-template <typename Dtype>
+template <typename DType>
 class MKLDNNLayer {
  public:
     MKLDNNLayer() {}
@@ -118,7 +118,7 @@ class MKLDNNLayer {
 };
 
 // =====  MKLDNNPrimitive =======================================
-template <typename Dtype>
+template <typename DType>
 class MKLDNNPrimitive {
  public:
     MKLDNNPrimitive():aprimitive(NULL), mkldnn_stream(NULL) {}
