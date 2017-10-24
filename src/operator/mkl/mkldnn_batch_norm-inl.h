@@ -63,6 +63,37 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
   }
 
  private:
+  /**
+   * This method returns a data layout format by query what a MKLDNN convolution
+   * operator would use for a specific platform. For example, on BDW, we expect
+   * this to be a 8 width layout, while for SKL or KNL, it should be 16 wide.
+   * @param ctx
+   * @param default_data_type
+   * @return
+   */
+  memory::format GetPlatformLayoutFormat(const OpContext &ctx,
+                                   const memory::data_type default_data_type) {
+    mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
+    auto propagation =
+        (ctx.is_train) ? prop_kind::forward_training : prop_kind::forward_scoring;
+    memory::dims convolutionStrides{1, 1};
+    memory::dims padding{1, 1};
+    memory::format memory_format_any = memory::format::any;
+    memory::desc init_bottom_md({128, 3, 28, 28}, default_data_type, memory_format_any);
+    memory::desc init_top_md({128, 16, 28, 28}, default_data_type, memory_format_any);
+    memory::desc init_weights_md({16, 3, 3, 3}, default_data_type, memory_format_any);
+    std::shared_ptr<convolution_forward::desc> convFwd_desc;
+    convFwd_desc.reset(
+        new convolution_forward::desc(propagation, algorithm::convolution_direct
+            , init_bottom_md, init_weights_md, init_top_md
+            , convolutionStrides, padding, padding, padding_kind::zero));
+    std::shared_ptr<convolution_forward::primitive_desc> convFwd_pd;
+    convFwd_pd.reset(new convolution_forward::primitive_desc(*convFwd_desc, cpu_engine));
+    std::cout << "conv desc: src_format=" << convFwd_pd->src_primitive_desc().desc().data.format
+              << " dst_format=" << convFwd_pd->dst_primitive_desc().desc().data.format << std::endl;
+    return static_cast<memory::format>(convFwd_pd->dst_primitive_desc().desc().data.format);
+  }
+
   void LayerSetUp(const OpContext &ctx,
                   const mshadow::Tensor<xpu, 4, DType> &data,
                   const mshadow::Tensor<xpu, 4, DType> &out) {
@@ -86,40 +117,18 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
                                                  cpu_engine));
 
     // TODO lfeng: this is a workaround to query architecture specific layout
-#if 1
+    memory::format platform_format = GetPlatformLayoutFormat(ctx,
+                                                             default_data_type);
 
-    memory::format platform_format = memory::format::nchw;
-    {
-      auto propagation =
-          (ctx.is_train) ? prop_kind::forward_training : prop_kind::forward_scoring;
-      memory::dims convolutionStrides{1, 1};
-      memory::dims padding{1, 1};
-      memory::format memory_format_any = memory::format::any;
-      memory::desc init_bottom_md({128, 3, 28, 28}, default_data_type, memory_format_any);
-      memory::desc init_top_md({128, 16, 28, 28}, default_data_type, memory_format_any);
-      memory::desc init_weights_md({16, 3, 3, 3}, default_data_type, memory_format_any);
-      std::shared_ptr<convolution_forward::desc> convFwd_desc;
-      convFwd_desc.reset(
-          new convolution_forward::desc(propagation, algorithm::convolution_direct
-              , init_bottom_md, init_weights_md, init_top_md
-              , convolutionStrides, padding, padding, padding_kind::zero));
-      std::shared_ptr<convolution_forward::primitive_desc> convFwd_pd;
-      convFwd_pd.reset(new convolution_forward::primitive_desc(*convFwd_desc, cpu_engine));
-      std::cout << "conv desc: src_format=" << convFwd_pd->src_primitive_desc().desc().data.format
-                << " dst_format=" << convFwd_pd->dst_primitive_desc().desc().data.format << std::endl;
-      platform_format = static_cast<memory::format>(convFwd_pd->dst_primitive_desc().desc().data.format);
-    }
-#endif
-
+    // on BDW or SKL, where we expect AVX2 (nChw8c) and AVX512 (nChw16c) optimized layouts, they
+    // require the channel to be multiples of 8.
     if (ic % 8 == 0) {
-      std::cout << "##### NOT FIRST LAYER #####" << std::endl;
       fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}},
                                               default_data_type,
                                               platform_format));
       fwd_prv_mpd.reset(new memory::primitive_desc(*fwd_prv_input_md,
                                                    cpu_engine));
     } else {
-      std::cout << "##### FIRST LAYER #####" << std::endl;
       fwd_prv_input_md = nullptr;
       fwd_prv_mpd = nullptr;
     }
