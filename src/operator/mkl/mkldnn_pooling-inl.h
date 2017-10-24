@@ -184,15 +184,6 @@ class MKLDNNPoolingOp : public Operator, public MKLDNNLayer<DType> {
       CHECK_EQ(in_data.size(), 1);
       CHECK_EQ(out_data.size(), 1);
       Stream<xpu> *s = ctx.get_stream<xpu>();
-#if 1
-    {
-      std::string prefix = "FWD-BEF POOL ";
-      PRINT_TENSOR(in_data, pool_enum::kData);
-      PRINT_TENSOR(out_data, pool_enum::kOut);
-      PRINT_BUFFER_HEAD(in_data, pool_enum::kData);
-      PRINT_BUFFER_HEAD(out_data, pool_enum::kOut);
-    }
-#endif
       if (param_.kernel.ndim() >= 3) {
         LOG(FATAL) << "Not implmented";
       }
@@ -225,15 +216,6 @@ class MKLDNNPoolingOp : public Operator, public MKLDNNLayer<DType> {
         fwd_top_data);
     }
     poolingFwd.submit();
-#if 1
-    {
-      std::string prefix = "FWD-AFT POOL ";
-      PRINT_TENSOR(in_data, pool_enum::kData);
-      PRINT_TENSOR(out_data, pool_enum::kOut);
-      PRINT_BUFFER_HEAD(in_data, pool_enum::kData);
-      PRINT_BUFFER_HEAD(out_data, pool_enum::kOut);
-    }
-#endif
   }
   void InitPoolingBwd(const std::vector<TBlob> &out_grad) {
     int32_t n = this->num_;

@@ -89,8 +89,7 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
             , convolutionStrides, padding, padding, padding_kind::zero));
     std::shared_ptr<convolution_forward::primitive_desc> convFwd_pd;
     convFwd_pd.reset(new convolution_forward::primitive_desc(*convFwd_desc, cpu_engine));
-    std::cout << "conv desc: src_format=" << convFwd_pd->src_primitive_desc().desc().data.format
-              << " dst_format=" << convFwd_pd->dst_primitive_desc().desc().data.format << std::endl;
+
     return static_cast<memory::format>(convFwd_pd->dst_primitive_desc().desc().data.format);
   }
 
@@ -116,13 +115,14 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
     fwd_usr_mpd.reset(new memory::primitive_desc(*fwd_usr_input_md,
                                                  cpu_engine));
 
-    // TODO lfeng: this is a workaround to query architecture specific layout
-    memory::format platform_format = GetPlatformLayoutFormat(ctx,
-                                                             default_data_type);
 
     // on BDW or SKL, where we expect AVX2 (nChw8c) and AVX512 (nChw16c) optimized layouts, they
     // require the channel to be multiples of 8.
     if (ic % 8 == 0) {
+      // TODO lfeng: this is a workaround to query architecture specific layout
+      // for best performance
+      memory::format platform_format = GetPlatformLayoutFormat(ctx,
+                                                               default_data_type);
       fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}},
                                               default_data_type,
                                               platform_format));
@@ -182,19 +182,6 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
                        const std::vector<TBlob> &aux_states) {
     using namespace mshadow;
     using namespace mshadow::expr;
-#if 1
-    {
-      std::string prefix = "FWD-BEF BANO ";
-      PRINT_TENSOR(in_data, batchnorm::kData);
-      PRINT_TENSOR(in_data, batchnorm::kGamma);
-      PRINT_TENSOR(in_data, batchnorm::kBeta);
-      PRINT_TENSOR(out_data, batchnorm::kOut);
-      PRINT_BUFFER_HEAD(in_data, batchnorm::kData);
-      PRINT_BUFFER_HEAD(in_data, batchnorm::kGamma);
-      PRINT_BUFFER_HEAD(in_data, batchnorm::kBeta);
-      PRINT_BUFFER_HEAD(out_data, batchnorm::kOut);
-    }
-#endif
     CHECK_EQ(in_data.size(), 3);
     CHECK_EQ(aux_states.size(), 2);
     if (ctx.is_train) {
@@ -313,19 +300,6 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
       fwd_top_data->sync_output_memory(out_data[batchnorm::kOut], fwd_top_data);
     }
     BatchNormFwd.submit();
-#if 1
-    {
-      std::string prefix = "FWD-AFT BANO ";
-      PRINT_TENSOR(in_data, batchnorm::kData);
-      PRINT_TENSOR(in_data, batchnorm::kGamma);
-      PRINT_TENSOR(in_data, batchnorm::kBeta);
-      PRINT_TENSOR(out_data, batchnorm::kOut);
-      PRINT_BUFFER_HEAD(in_data, batchnorm::kData);
-      PRINT_BUFFER_HEAD(in_data, batchnorm::kGamma);
-      PRINT_BUFFER_HEAD(in_data, batchnorm::kBeta);
-      PRINT_BUFFER_HEAD(out_data, batchnorm::kOut);
-    }
-#endif
   }
   void InitBatchNormBwd(const std::vector<TBlob> &out_grad) {
     int32_t n = this->num_;
@@ -391,41 +365,6 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
     CHECK_EQ(in_grad.size(), 3);
     Stream<xpu> *s = ctx.get_stream<xpu>();
     Tensor<xpu, 4, DType> data, grad, grad_in;
-
-#if 0
-    {
-      auto printTensor = [] (const std::string& name, const mshadow::Tensor<xpu, 1, Dtype>& t) {
-          std::cout << "BEFORE " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
-          for (int i = 0; i < std::min(20, (int)t.size(0)); ++i) {
-            std::cout << t[i] << " ";
-          }
-          std::cout << std::endl;
-      };
-      mshadow::Stream <xpu> *s = ctx.get_stream<xpu>();
-      mshadow::Tensor<xpu, 1, Dtype> indatakData = in_data[batchnorm::kData].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm indatakData", indatakData);
-      mshadow::Tensor<xpu, 1, Dtype> indatakGamma = in_data[batchnorm::kGamma].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm indatakGamma", indatakGamma);
-      mshadow::Tensor<xpu, 1, Dtype> ingradkGamma = in_grad[batchnorm::kGamma].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm ingradkGamma", ingradkGamma);
-      mshadow::Tensor<xpu, 1, Dtype> ingradkBeta = in_grad[batchnorm::kBeta].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm ingradkBeta", ingradkBeta);
-      mshadow::Tensor<xpu, 1, Dtype> ingradkData = in_grad[batchnorm::kData].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm ingradkData", ingradkData);
-      mshadow::Tensor<xpu, 1, Dtype> auxstateskMovingMean = aux_states[batchnorm::kMovingMean].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm auxstateskMovingMean", auxstateskMovingMean);
-      mshadow::Tensor<xpu, 1, Dtype> auxstateskMovingVar = aux_states[batchnorm::kMovingVar].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm auxstateskMovingVar", auxstateskMovingVar);
-      mshadow::Tensor<xpu, 1, Dtype> outdatakMean = out_data[batchnorm::kMean].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm outdatakMean", outdatakMean);
-      mshadow::Tensor<xpu, 1, Dtype> outdatakVar = out_data[batchnorm::kVar].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm outdatakVar", outdatakVar);
-      mshadow::Tensor<xpu, 1, Dtype> outgradkOut = out_grad[batchnorm::kOut].FlatTo1D<xpu, Dtype>(s);
-      printTensor("batchnorm outgradkOut", outgradkOut);
-    }
-
-//      exit(0);
-#endif
 
     if (in_data[batchnorm::kData].ndim() == 2) {
       Shape<4> dshape = Shape4(out_grad[batchnorm::kOut].shape_[0],
@@ -517,41 +456,6 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
     for (int i = 0; i < channels_; i++) {
       diff_shift[i] = scaleShiftDiff_buf[channels_ + i];
     }
-
-#if 0
-      {
-        auto printTensor = [] (const std::string& name, const mshadow::Tensor<xpu, 1, Dtype>& t) {
-            std::cout << "AFTER " << name << " @" << t.dptr_ << " (" << t.size(0) << "): ";
-            for (int i = 0; i < std::min(20, (int)t.size(0)); ++i) {
-              std::cout << t[i] << " ";
-            }
-            std::cout << std::endl;
-        };
-        mshadow::Stream <xpu> *s = ctx.get_stream<xpu>();
-        mshadow::Tensor<xpu, 1, Dtype> indatakData = in_data[batchnorm::kData].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm indatakData", indatakData);
-        mshadow::Tensor<xpu, 1, Dtype> indatakGamma = in_data[batchnorm::kGamma].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm indatakGamma", indatakGamma);
-        mshadow::Tensor<xpu, 1, Dtype> ingradkGamma = in_grad[batchnorm::kGamma].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm ingradkGamma", ingradkGamma);
-        mshadow::Tensor<xpu, 1, Dtype> ingradkBeta = in_grad[batchnorm::kBeta].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm ingradkBeta", ingradkBeta);
-        mshadow::Tensor<xpu, 1, Dtype> ingradkData = in_grad[batchnorm::kData].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm ingradkData", ingradkData);
-        mshadow::Tensor<xpu, 1, Dtype> auxstateskMovingMean = aux_states[batchnorm::kMovingMean].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm auxstateskMovingMean", auxstateskMovingMean);
-        mshadow::Tensor<xpu, 1, Dtype> auxstateskMovingVar = aux_states[batchnorm::kMovingVar].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm auxstateskMovingVar", auxstateskMovingVar);
-        mshadow::Tensor<xpu, 1, Dtype> outdatakMean = out_data[batchnorm::kMean].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm outdatakMean", outdatakMean);
-        mshadow::Tensor<xpu, 1, Dtype> outdatakVar = out_data[batchnorm::kVar].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm outdatakVar", outdatakVar);
-        mshadow::Tensor<xpu, 1, Dtype> outgradkOut = out_grad[batchnorm::kOut].FlatTo1D<xpu, Dtype>(s);
-        printTensor("batchnorm outgradkOut", outgradkOut);
-      }
-
-//      exit(0);
-#endif
   }
 
  private:
