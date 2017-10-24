@@ -34,8 +34,8 @@
 namespace mxnet {
 namespace op {
 
-template<typename xpu, typename Dtype>
-class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
+template<typename xpu, typename DType>
+class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<DType> {
  public:
   explicit MKLDNNFullyConnectedOp(FullyConnectedParam p):
     init_mkldnn_(false),
@@ -63,8 +63,8 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
   }
 
  private:
-  void LayerSetUp(const mshadow::Tensor<xpu, 2, Dtype> &data,
-     const mshadow::Tensor<xpu, 2, Dtype> &out) {
+  void LayerSetUp(const mshadow::Tensor<xpu, 2, DType> &data,
+     const mshadow::Tensor<xpu, 2, DType> &out) {
      this->w_ = 1;
      this->h_ = 1;
      this->M_ = data.shape_[0];
@@ -133,13 +133,13 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
         new MemPD({ { weights_tz }, mpcsn, weights_mfmt }, cpu_engine));
 
       // ---  init primitive and prv_memory descriptors ----------------------
-      fwd_bottom_data.reset(new MKLDNNData<Dtype>(
+      fwd_bottom_data.reset(new MKLDNNData<DType>(
         usr_bottom_data_memory_pd, prv_fwd_bottom_data_memory_pd));
-      fwd_top_data.reset(new MKLDNNData<Dtype>(
+      fwd_top_data.reset(new MKLDNNData<DType>(
         usr_top_data_memory_pd, prv_fwd_top_data_memory_pd));
-      fwd_weights_data.reset(new MKLDNNData<Dtype>(
+      fwd_weights_data.reset(new MKLDNNData<DType>(
         usr_weights_data_memory_pd, prv_fwd_weights_data_memory_pd));
-      fwd_bias_data.reset(new MKLDNNData<Dtype>(
+      fwd_bias_data.reset(new MKLDNNData<DType>(
         usr_bias_data_memory_pd, prv_fwd_bias_data_memory_pd));
 
       // Names are for debugging purposes only.
@@ -165,20 +165,20 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
     CHECK_EQ(out_data.size(), 1);
     int status;
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    Tensor<xpu, 2, Dtype> data;
-    Tensor<xpu, 2, Dtype> out;
+    Tensor<xpu, 2, DType> data;
+    Tensor<xpu, 2, DType> out;
 
     const TShape& ishape = in_data[fullc::kData].shape_;
     const TShape& oshape = out_data[fullc::kOut].shape_;
 
-    data = mkl_experimental_direct_get_with_shape<xpu, 2, Dtype>(
+    data = mkl_experimental_direct_get_with_shape<xpu, 2, DType>(
       in_data[fullc::kData],
       Shape2(ishape[0], ishape.ProdShape(1, ishape.ndim())), s);
-    out = mkl_experimental_direct_get_with_shape<xpu, 2, Dtype>(
+    out = mkl_experimental_direct_get_with_shape<xpu, 2, DType>(
       out_data[fullc::kOut],
       Shape2(oshape[0], oshape.ProdShape(1, oshape.ndim())), s);
-    Tensor<xpu, 2, Dtype> wmat =
-      mkl_experimental_direct_get<xpu, 2, Dtype>(in_data[fullc::kWeight], s);
+    Tensor<xpu, 2, DType> wmat =
+      mkl_experimental_direct_get<xpu, 2, DType>(in_data[fullc::kWeight], s);
 
 
     if (!init_mkldnn_) {
@@ -194,8 +194,8 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
       fwd_top_data_memory = fwd_top_data->create_output_memory(
         out.dptr_, out_data[fullc::kOut], fwd_top_data);
       if (!param_.no_bias) {
-        Tensor<xpu, 1, Dtype> bias =
-          mkl_experimental_direct_get<xpu, 1, Dtype>(in_data[fullc::kBias], s);
+        Tensor<xpu, 1, DType> bias =
+          mkl_experimental_direct_get<xpu, 1, DType>(in_data[fullc::kBias], s);
         fwd_bias_data_primitive = fwd_bias_data->get_converted_prv(bias.dptr_,
           true, in_data[fullc::kBias]);
         ipFwd.reset(new inner_product_forward(*ipFwd_pd
@@ -214,8 +214,8 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
       fwd_top_data->sync_output_memory(
         out_data[fullc::kOut], fwd_top_data);
       if (!param_.no_bias) {
-        Tensor<xpu, 1, Dtype> bias =
-          mkl_experimental_direct_get<xpu, 1, Dtype>(in_data[fullc::kBias], s);
+        Tensor<xpu, 1, DType> bias =
+          mkl_experimental_direct_get<xpu, 1, DType>(in_data[fullc::kBias], s);
         fwd_bias_data->sync_converted_prv(bias.dptr_,
           true, in_data[fullc::kBias]);
       }
@@ -300,29 +300,29 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
       new MemPD({ { weights_tz }, mpcsn, weights_mfmt }, cpu_engine));
 
     // ---  init primitive and prv_memory descriptors ----------------------
-    bwdd_bottom_diff.reset(new MKLDNNData<Dtype>(
+    bwdd_bottom_diff.reset(new MKLDNNData<DType>(
       usr_bottom_data_memory_pd, prv_bwdd_bottom_diff_memory_pd));
     bwdd_bottom_diff->name = "bwdd_bottom_diff   @ " + this->getName();
-    bwdw_bottom_data.reset(new MKLDNNData<Dtype>(
+    bwdw_bottom_data.reset(new MKLDNNData<DType>(
       usr_bottom_data_memory_pd, prv_bwdw_bottom_data_memory_pd));
     bwdw_bottom_data->name = "bwdw_bottom_data   @ " + this->getName();
 
-    bwdd_top_diff.reset(new MKLDNNData<Dtype>(
+    bwdd_top_diff.reset(new MKLDNNData<DType>(
       usr_top_data_memory_pd, prv_bwdd_top_diff_memory_pd));
     bwdd_top_diff->name = "bwdd_top_diff      @ " + this->getName();
-    bwdw_top_diff.reset(new MKLDNNData<Dtype>(
+    bwdw_top_diff.reset(new MKLDNNData<DType>(
       usr_top_data_memory_pd, prv_bwdw_top_diff_memory_pd));
     bwdw_top_diff->name = "bwdw_top_diff      @ " + this->getName();;
 
-    bwdd_weights_data.reset(new MKLDNNData<Dtype>(
+    bwdd_weights_data.reset(new MKLDNNData<DType>(
       usr_weights_data_memory_pd, prv_bwdd_weights_data_memory_pd));
     bwdd_weights_data->name = "bwdd_weights_data  @ " + this->getName();
-    bwdw_weights_diff.reset(new MKLDNNData<Dtype>(
+    bwdw_weights_diff.reset(new MKLDNNData<DType>(
       usr_weights_data_memory_pd, prv_bwdw_weights_diff_memory_pd));
     bwdw_weights_diff->name = "bwdw_weights_diff  @ " + this->getName();;
 
     if (!param_.no_bias) {
-      bwdw_bias_diff.reset(new MKLDNNData<Dtype>(
+      bwdw_bias_diff.reset(new MKLDNNData<DType>(
         usr_bias_data_memory_pd, prv_bwdw_bias_diff_memory_pd));
       bwdw_bias_diff->name = "bwdw_bias_diff     @ " + this->getName();;
     }
@@ -345,25 +345,25 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
     const TShape& ishape = in_data[fullc::kData].shape_;
     const TShape& oshape = out_grad[fullc::kOut].shape_;
 
-    Tensor<xpu, 2, Dtype> data = mkl_experimental_direct_get_with_shape<xpu, 2, Dtype>(
+    Tensor<xpu, 2, DType> data = mkl_experimental_direct_get_with_shape<xpu, 2, DType>(
       in_data[fullc::kData],
       Shape2(ishape[0], ishape.ProdShape(1, ishape.ndim())), s);
-    Tensor<xpu, 2, Dtype> wmat = mkl_experimental_direct_get<xpu, 2, Dtype>(
+    Tensor<xpu, 2, DType> wmat = mkl_experimental_direct_get<xpu, 2, DType>(
       in_data[fullc::kWeight], s);
-    Tensor<xpu, 2, Dtype> grad = mkl_experimental_direct_get_with_shape<xpu, 2, Dtype>(
+    Tensor<xpu, 2, DType> grad = mkl_experimental_direct_get_with_shape<xpu, 2, DType>(
       out_grad[fullc::kOut],
       Shape2(oshape[0], oshape.ProdShape(1, oshape.ndim())), s);
     //  backprop
     CHECK_NE(req[fullc::kWeight], kWriteInplace) << "cannot write weight inplace";
     // gradient of weight
-    Tensor<xpu, 2, Dtype> gwmat = mkl_experimental_direct_get<xpu, 2, Dtype>(
+    Tensor<xpu, 2, DType> gwmat = mkl_experimental_direct_get<xpu, 2, DType>(
       in_grad[fullc::kWeight], s);
-    Tensor<xpu, 2, Dtype> gdata = mkl_experimental_direct_get_with_shape<xpu, 2, Dtype>(
+    Tensor<xpu, 2, DType> gdata = mkl_experimental_direct_get_with_shape<xpu, 2, DType>(
       in_grad[fullc::kData],
       Shape2(ishape[0], ishape.ProdShape(1, ishape.ndim())), s);
-    Tensor<xpu, 1, Dtype> gbias;
+    Tensor<xpu, 1, DType> gbias;
     if (!param_.no_bias)
-        gbias = mkl_experimental_direct_get<xpu, 1, Dtype>(
+        gbias = mkl_experimental_direct_get<xpu, 1, DType>(
             in_grad[fullc::kBias], s);
     if (!init_mkldnn_) {
       LayerSetUp(data, grad);
@@ -430,13 +430,13 @@ class MKLDNNFullyConnectedOp : public Operator, public MKLDNNLayer<Dtype> {
 
  private:
   bool init_mkldnn_;
-  std::shared_ptr<MKLDNNData<Dtype> > fwd_bottom_data, fwd_top_data, fwd_weights_data,
+  std::shared_ptr<MKLDNNData<DType> > fwd_bottom_data, fwd_top_data, fwd_weights_data,
     fwd_bias_data, bwdd_weights_data, bwdw_bottom_data, bwdd_bottom_diff, bwdd_top_diff,
     bwdw_top_diff, bwdw_weights_diff, bwdw_bias_diff;
   std::shared_ptr<inner_product_forward::primitive_desc> ipFwd_pd;
   std::shared_ptr<inner_product_backward_data::primitive_desc> ipBwdData_pd;
   std::shared_ptr<inner_product_backward_weights::primitive_desc> ipBwdWeights_pd;
-  MKLDNNPrimitive<Dtype> ipFwd, ipBwdData, ipBwdWeights;
+  MKLDNNPrimitive<DType> ipFwd, ipBwdData, ipBwdWeights;
 
   std::shared_ptr<memory> fwd_top_data_memory;
   std::shared_ptr<primitive> fwd_bottom_data_primitive,

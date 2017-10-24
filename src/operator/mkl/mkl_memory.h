@@ -77,8 +77,7 @@ struct MKLMemHolder {
     b_eager_mode = eager_mode;
   }
   void set_prv_descriptor(std::shared_ptr<PrvMemDescr> descriptor, bool same_data = false) {
-    if (descriptor != nullptr)
-      head_ = HEAD_AT_PRV;
+    if (descriptor != nullptr) head_ = HEAD_AT_PRV;
     prv_descriptor_ = descriptor;
   }
   std::shared_ptr<PrvMemDescr> get_prv_descriptor() {
@@ -127,7 +126,6 @@ struct MKLMemHolder {
    * @param convert 
    */
   void  check_and_prv_to_cpu(void *dptr_, bool convert = true) {
-//    std::cout << __FUNCTION__ << " " << __LINE__ << std::endl;
     if (!b_disable_prv_2_cpu && head_ == HEAD_AT_PRV) {
       CHECK(prv_descriptor_ != nullptr);
       if (convert)

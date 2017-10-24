@@ -35,7 +35,7 @@ extern int getMKLBuildDate();
 extern bool EnableMklWarnGenerated();
 
 
-template <typename Dtype> inline dnnError_t dnnLayoutCreate(
+template <typename DType> inline dnnError_t dnnLayoutCreate(
     dnnLayout_t *pLayout, size_t dimension, const size_t size[], const size_t strides[]);
 template <> inline dnnError_t dnnLayoutCreate<float>(
     dnnLayout_t *pLayout, size_t dimension, const size_t size[], const size_t strides[]) {
@@ -46,7 +46,7 @@ template <> inline dnnError_t dnnLayoutCreate<double>(
     return dnnLayoutCreate_F64(pLayout, dimension, size, strides);
 }
 
-template <typename Dtype> inline dnnError_t dnnLayoutCreateFromPrimitive(
+template <typename DType> inline dnnError_t dnnLayoutCreateFromPrimitive(
     dnnLayout_t *pLayout, const dnnPrimitive_t primitive, dnnResourceType_t type);
 template <> inline dnnError_t dnnLayoutCreateFromPrimitive<float>(
     dnnLayout_t *pLayout, const dnnPrimitive_t primitive, dnnResourceType_t type) {
@@ -57,7 +57,7 @@ template <> inline dnnError_t dnnLayoutCreateFromPrimitive<double>(
     return dnnLayoutCreateFromPrimitive_F64(pLayout, primitive, type);
 }
 
-template <typename Dtype> inline size_t dnnLayoutGetMemorySize(
+template <typename DType> inline size_t dnnLayoutGetMemorySize(
     const dnnLayout_t layout);
 template <> inline size_t dnnLayoutGetMemorySize<float>(
     const dnnLayout_t layout) {
@@ -68,7 +68,7 @@ template <> inline size_t dnnLayoutGetMemorySize<double>(
     return dnnLayoutGetMemorySize_F64(layout);
 }
 
-template <typename Dtype> inline int dnnLayoutCompare(
+template <typename DType> inline int dnnLayoutCompare(
     const dnnLayout_t l1, const dnnLayout_t l2);
 template <> inline int dnnLayoutCompare<float>(
     const dnnLayout_t l1, const dnnLayout_t l2) {
@@ -80,7 +80,7 @@ template <> inline int dnnLayoutCompare<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnAllocateBuffer(
+template <typename DType> inline dnnError_t dnnAllocateBuffer(
     void **pPtr, dnnLayout_t layout);
 template <> inline dnnError_t dnnAllocateBuffer<float>(
     void **pPtr, dnnLayout_t layout) {
@@ -91,7 +91,7 @@ template <> inline dnnError_t dnnAllocateBuffer<double>(
     return dnnAllocateBuffer_F64(pPtr, layout);
 }
 
-template <typename Dtype> inline dnnError_t dnnReleaseBuffer(
+template <typename DType> inline dnnError_t dnnReleaseBuffer(
     void *ptr);
 template <> inline dnnError_t dnnReleaseBuffer<float>(
     void *ptr) {
@@ -102,7 +102,7 @@ template <> inline dnnError_t dnnReleaseBuffer<double>(
     return dnnReleaseBuffer_F64(ptr);
 }
 
-template <typename Dtype> inline dnnError_t dnnLayoutDelete(
+template <typename DType> inline dnnError_t dnnLayoutDelete(
     dnnLayout_t layout);
 template <> inline dnnError_t dnnLayoutDelete<float>(
     dnnLayout_t layout) {
@@ -113,7 +113,7 @@ template <> inline dnnError_t dnnLayoutDelete<double>(
     return dnnLayoutDelete_F64(layout);
 }
 
-template <typename Dtype> inline dnnError_t dnnPrimitiveAttributesCreate(
+template <typename DType> inline dnnError_t dnnPrimitiveAttributesCreate(
     dnnPrimitiveAttributes_t *attributes);
 template <> inline dnnError_t dnnPrimitiveAttributesCreate<float>(
     dnnPrimitiveAttributes_t *attributes) {
@@ -125,7 +125,7 @@ template <> inline dnnError_t dnnPrimitiveAttributesCreate<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnPrimitiveAttributesDestroy(
+template <typename DType> inline dnnError_t dnnPrimitiveAttributesDestroy(
     dnnPrimitiveAttributes_t attributes);
 template <> inline dnnError_t dnnPrimitiveAttributesDestroy<float>(
     dnnPrimitiveAttributes_t attributes) {
@@ -136,7 +136,7 @@ template <> inline dnnError_t dnnPrimitiveAttributesDestroy<double>(
     return dnnPrimitiveAttributesDestroy_F64(attributes);
 }
 
-template <typename Dtype> inline dnnError_t dnnPrimitiveGetAttributes(
+template <typename DType> inline dnnError_t dnnPrimitiveGetAttributes(
     dnnPrimitive_t primitive,
     dnnPrimitiveAttributes_t *attributes);
 template <> inline dnnError_t dnnPrimitiveGetAttributes<float>(
@@ -150,7 +150,7 @@ template <> inline dnnError_t dnnPrimitiveGetAttributes<double>(
     return dnnPrimitiveGetAttributes_F64(primitive, attributes);
 }
 
-template <typename Dtype> inline dnnError_t dnnExecute(
+template <typename DType> inline dnnError_t dnnExecute(
     dnnPrimitive_t primitive, void *resources[]);
 template <> inline dnnError_t dnnExecute<float>(
     dnnPrimitive_t primitive, void *resources[]) {
@@ -161,7 +161,7 @@ template <> inline dnnError_t dnnExecute<double>(
     return dnnExecute_F64(primitive, resources);
 }
 
-template <typename Dtype> inline dnnError_t dnnExecuteAsync(
+template <typename DType> inline dnnError_t dnnExecuteAsync(
     dnnPrimitive_t primitive, void *resources[]);
 template <> inline dnnError_t dnnExecuteAsync<float>(
     dnnPrimitive_t primitive, void *resources[]) {
@@ -172,7 +172,7 @@ template <> inline dnnError_t dnnExecuteAsync<double>(
     return dnnExecuteAsync_F64(primitive, resources);
 }
 
-template <typename Dtype> inline dnnError_t dnnWaitFor(
+template <typename DType> inline dnnError_t dnnWaitFor(
     dnnPrimitive_t primitive);
 template <> inline dnnError_t dnnWaitFor<float>(
     dnnPrimitive_t primitive) {
@@ -183,7 +183,7 @@ template <> inline dnnError_t dnnWaitFor<double>(
     return dnnWaitFor_F64(primitive);
 }
 
-template <typename Dtype> inline dnnError_t dnnDelete(
+template <typename DType> inline dnnError_t dnnDelete(
     dnnPrimitive_t primitive);
 template <> inline dnnError_t dnnDelete<float>(
     dnnPrimitive_t primitive) {
@@ -195,7 +195,7 @@ template <> inline dnnError_t dnnDelete<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnConversionCreate(
+template <typename DType> inline dnnError_t dnnConversionCreate(
     dnnPrimitive_t* pConversion, const dnnLayout_t from, const dnnLayout_t to);
 template <> inline dnnError_t dnnConversionCreate<float>(
     dnnPrimitive_t* pConversion, const dnnLayout_t from, const dnnLayout_t to) {
@@ -207,7 +207,7 @@ template <> inline dnnError_t dnnConversionCreate<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnConversionExecute(
+template <typename DType> inline dnnError_t dnnConversionExecute(
     dnnPrimitive_t conversion, void *from, void *to);
 template <> inline dnnError_t dnnConversionExecute<float>(
     dnnPrimitive_t conversion, void *from, void *to) {
@@ -219,7 +219,7 @@ template <> inline dnnError_t dnnConversionExecute<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnConvolutionCreateForward(
+template <typename DType> inline dnnError_t dnnConvolutionCreateForward(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -254,7 +254,7 @@ template <> inline dnnError_t dnnConvolutionCreateForward<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnConvolutionCreateForwardBias(
+template <typename DType> inline dnnError_t dnnConvolutionCreateForwardBias(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -288,7 +288,7 @@ template <> inline dnnError_t dnnConvolutionCreateForwardBias<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnConvolutionCreateBackwardData(
+template <typename DType> inline dnnError_t dnnConvolutionCreateBackwardData(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -324,7 +324,7 @@ template <> inline dnnError_t dnnConvolutionCreateBackwardData<double>(
                convolutionStrides, inputOffset, border_type);
 }
 
-template <typename Dtype> inline dnnError_t dnnConvolutionCreateBackwardFilter(
+template <typename DType> inline dnnError_t dnnConvolutionCreateBackwardFilter(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -357,7 +357,7 @@ template <> inline dnnError_t dnnConvolutionCreateBackwardFilter<double>(
                convolutionStrides, inputOffset, border_type);
 }
 
-template <typename Dtype> inline dnnError_t dnnConvolutionCreateBackwardBias(
+template <typename DType> inline dnnError_t dnnConvolutionCreateBackwardBias(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -385,7 +385,7 @@ template <> inline dnnError_t dnnConvolutionCreateBackwardBias<double>(
                dimension, dstSize);
 }
 
-template <typename Dtype> inline dnnError_t dnnGroupsConvolutionCreateForward(
+template <typename DType> inline dnnError_t dnnGroupsConvolutionCreateForward(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -421,7 +421,7 @@ template <> inline dnnError_t dnnGroupsConvolutionCreateForward<double>(
                convolutionStrides, inputOffset, border_type);
 }
 
-template <typename Dtype> inline dnnError_t dnnGroupsConvolutionCreateForwardBias(
+template <typename DType> inline dnnError_t dnnGroupsConvolutionCreateForwardBias(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -457,7 +457,7 @@ template <> inline dnnError_t dnnGroupsConvolutionCreateForwardBias<double>(
                convolutionStrides, inputOffset, border_type);
 }
 
-template <typename Dtype> inline dnnError_t dnnGroupsConvolutionCreateBackwardData(
+template <typename DType> inline dnnError_t dnnGroupsConvolutionCreateBackwardData(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -494,7 +494,7 @@ template <> inline dnnError_t dnnGroupsConvolutionCreateBackwardData<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnGroupsConvolutionCreateBackwardFilter(
+template <typename DType> inline dnnError_t dnnGroupsConvolutionCreateBackwardFilter(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -530,7 +530,7 @@ template <> inline dnnError_t dnnGroupsConvolutionCreateBackwardFilter<double>(
                convolutionStrides, inputOffset, border_type);
 }
 
-template <typename Dtype> inline dnnError_t dnnGroupsConvolutionCreateBackwardBias(
+template <typename DType> inline dnnError_t dnnGroupsConvolutionCreateBackwardBias(
     dnnPrimitive_t* pConvolution,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t algorithm,
@@ -558,7 +558,7 @@ template <> inline dnnError_t dnnGroupsConvolutionCreateBackwardBias<double>(
                groups, dimension, dstSize);
 }
 
-template <typename Dtype> inline dnnError_t dnnReLUCreateForward(
+template <typename DType> inline dnnError_t dnnReLUCreateForward(
     dnnPrimitive_t* pRelu,
     dnnPrimitiveAttributes_t attributes,
     const dnnLayout_t dataLayout, float negativeSlope);
@@ -581,7 +581,7 @@ template <> inline dnnError_t dnnReLUCreateForward<double>(
                dataLayout, negativeSlope);
 }
 
-template <typename Dtype> inline dnnError_t dnnReLUCreateBackward(
+template <typename DType> inline dnnError_t dnnReLUCreateBackward(
     dnnPrimitive_t* pRelu,
     dnnPrimitiveAttributes_t attributes,
     const dnnLayout_t diffLayout, const dnnLayout_t dataLayout, float negativeSlope);
@@ -604,7 +604,7 @@ template <> inline dnnError_t dnnReLUCreateBackward<double>(
                diffLayout, dataLayout, negativeSlope);
 }
 
-template <typename Dtype> inline dnnError_t dnnLRNCreateForward(
+template <typename DType> inline dnnError_t dnnLRNCreateForward(
     dnnPrimitive_t* pLrn,
     dnnPrimitiveAttributes_t attributes,
     const dnnLayout_t dataLayout, size_t kernel_size, float alpha, float beta, float k);
@@ -628,7 +628,7 @@ template <> inline dnnError_t dnnLRNCreateForward<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnLRNCreateBackward(
+template <typename DType> inline dnnError_t dnnLRNCreateBackward(
     dnnPrimitive_t* pLrn,
     dnnPrimitiveAttributes_t attributes,
     const dnnLayout_t diffLayout, const dnnLayout_t dataLayout,
@@ -655,7 +655,7 @@ template <> inline dnnError_t dnnLRNCreateBackward<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnPoolingCreateForward(
+template <typename DType> inline dnnError_t dnnPoolingCreateForward(
     dnnPrimitive_t* pPooling,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t op,
@@ -694,7 +694,7 @@ template <> inline dnnError_t dnnPoolingCreateForward<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnPoolingCreateBackward(
+template <typename DType> inline dnnError_t dnnPoolingCreateBackward(
     dnnPrimitive_t* pPooling,
     dnnPrimitiveAttributes_t attributes,
     dnnAlgorithm_t op,
@@ -732,7 +732,7 @@ template <> inline dnnError_t dnnPoolingCreateBackward<double>(
                inputOffset, border_type);
 }
 
-template <typename Dtype> inline dnnError_t dnnConcatCreate(
+template <typename DType> inline dnnError_t dnnConcatCreate(
     dnnPrimitive_t *pConcat,
     dnnPrimitiveAttributes_t attributes,
     const size_t N,
@@ -761,7 +761,7 @@ template <> inline dnnError_t dnnConcatCreate<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnSplitCreate(
+template <typename DType> inline dnnError_t dnnSplitCreate(
     dnnPrimitive_t *pSplit,
     dnnPrimitiveAttributes_t attributes,
     const size_t N,
@@ -794,10 +794,10 @@ template <> inline dnnError_t dnnSplitCreate<double>(
                dst);
 }
 
-template <typename Dtype> inline dnnError_t dnnSumCreate(
+template <typename DType> inline dnnError_t dnnSumCreate(
     dnnPrimitive_t *pSum,
     dnnPrimitiveAttributes_t attributes,
-    const size_t nSummands, dnnLayout_t layout, Dtype *coefficients);
+    const size_t nSummands, dnnLayout_t layout, DType *coefficients);
 template <> inline dnnError_t dnnSumCreate<float>(
     dnnPrimitive_t *pSum,
     dnnPrimitiveAttributes_t attributes,
@@ -819,7 +819,7 @@ template <> inline dnnError_t dnnSumCreate<double>(
                layout, coefficients);
 }
 
-template <typename Dtype> inline dnnError_t dnnBatchNormalizationCreateForward_v2(
+template <typename DType> inline dnnError_t dnnBatchNormalizationCreateForward_v2(
     dnnPrimitive_t* pBatchNormalization,
     dnnPrimitiveAttributes_t attributes,
     const dnnLayout_t dataLayout, float eps,
@@ -847,7 +847,7 @@ template <> inline dnnError_t dnnBatchNormalizationCreateForward_v2<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnBatchNormalizationCreateBackward_v2(
+template <typename DType> inline dnnError_t dnnBatchNormalizationCreateBackward_v2(
     dnnPrimitive_t* pBatchNormalization,
     dnnPrimitiveAttributes_t attributes,
     const dnnLayout_t dataLayout, float eps,
@@ -875,7 +875,7 @@ template <> inline dnnError_t dnnBatchNormalizationCreateBackward_v2<double>(
                dataLayout, eps, flags);
 }
 
-template <typename Dtype> inline dnnError_t dnnInnerProductCreateForward(
+template <typename DType> inline dnnError_t dnnInnerProductCreateForward(
     dnnPrimitive_t *pInnerProduct,
     dnnPrimitiveAttributes_t attributes,
     size_t dimensions,
@@ -902,7 +902,7 @@ template <> inline dnnError_t dnnInnerProductCreateForward<double>(
                                             srcSize, outputChannels);
 }
 
-template <typename Dtype> inline dnnError_t dnnInnerProductCreateForwardBias(
+template <typename DType> inline dnnError_t dnnInnerProductCreateForwardBias(
     dnnPrimitive_t *pInnerProduct,
     dnnPrimitiveAttributes_t attributes,
     size_t dimensions,
@@ -931,7 +931,7 @@ template <> inline dnnError_t dnnInnerProductCreateForwardBias<double>(
 }
 
 
-template <typename Dtype> inline dnnError_t dnnInnerProductCreateBackwardData(
+template <typename DType> inline dnnError_t dnnInnerProductCreateBackwardData(
     dnnPrimitive_t *pInnerProduct,
     dnnPrimitiveAttributes_t attributes,
     size_t dimensions,
@@ -962,7 +962,7 @@ template <> inline dnnError_t dnnInnerProductCreateBackwardData<double>(
 
 
 
-template <typename Dtype> inline dnnError_t dnnInnerProductCreateBackwardFilter(
+template <typename DType> inline dnnError_t dnnInnerProductCreateBackwardFilter(
     dnnPrimitive_t *pInnerProduct,
     dnnPrimitiveAttributes_t attributes,
     size_t dimensions,
@@ -992,7 +992,7 @@ template <> inline dnnError_t dnnInnerProductCreateBackwardFilter<double>(
 
 
 
-template <typename Dtype> inline dnnError_t dnnInnerProductCreateBackwardBias(
+template <typename DType> inline dnnError_t dnnInnerProductCreateBackwardBias(
     dnnPrimitive_t *pInnerProduct,
     dnnPrimitiveAttributes_t attributes,
     size_t dimensions,
