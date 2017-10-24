@@ -63,31 +63,59 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
   }
 
  private:
-  void LayerSetUp(const mshadow::Tensor<xpu, 4, DType> &data,
+  void LayerSetUp(const OpContext &ctx,
+                  const mshadow::Tensor<xpu, 4, DType> &data,
                   const mshadow::Tensor<xpu, 4, DType> &out) {
     eps_ = param_.eps;
+    num_ = data.shape_[0];
     channels_ = data.shape_[1];
     height_ = data.shape_[2];
     width_ = data.shape_[3];
-    num_ = data.shape_[0];
     int32_t n = this->num_;
-    int32_t iw = this->width_;
-    int32_t ih = this->height_;
     int32_t ic = this->channels_;
-    memory::data_type mpcsn = memory::data_type::f32;
+    int32_t ih = this->height_;
+    int32_t iw = this->width_;
+    memory::data_type default_data_type = memory::data_type::f32;
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
+    // Set up usr memory descriptor
+    // by default we expect usr input format is nchw
     fwd_usr_input_md.reset(new memory::desc({{n, ic, ih, iw}},
-                                            mpcsn,
+                                            default_data_type,
                                             memory::format::nchw));
     fwd_usr_mpd.reset(new memory::primitive_desc(*fwd_usr_input_md,
                                                  cpu_engine));
-    /* auto pmfmt = ((__builtin_cpu_supports("avx2")) || */
-    /*                (__builtin_cpu_supports("avx"))) ? */
-    /*                memory::format::nChw8c : memory::format::nChw16c; */
+
+    // TODO lfeng: this is a workaround to query architecture specific layout
+#if 1
+
+    memory::format platform_format = memory::format::nchw;
+    {
+      auto propagation =
+          (ctx.is_train) ? prop_kind::forward_training : prop_kind::forward_scoring;
+      memory::dims convolutionStrides{1, 1};
+      memory::dims padding{1, 1};
+      memory::format memory_format_any = memory::format::any;
+      memory::desc init_bottom_md({128, 3, 28, 28}, default_data_type, memory_format_any);
+      memory::desc init_top_md({128, 16, 28, 28}, default_data_type, memory_format_any);
+      memory::desc init_weights_md({16, 3, 3, 3}, default_data_type, memory_format_any);
+      std::shared_ptr<convolution_forward::desc> convFwd_desc;
+      convFwd_desc.reset(
+          new convolution_forward::desc(propagation, algorithm::convolution_direct
+              , init_bottom_md, init_weights_md, init_top_md
+              , convolutionStrides, padding, padding, padding_kind::zero));
+      std::shared_ptr<convolution_forward::primitive_desc> convFwd_pd;
+      convFwd_pd.reset(new convolution_forward::primitive_desc(*convFwd_desc, cpu_engine));
+      std::cout << "conv desc: src_format=" << convFwd_pd->src_primitive_desc().desc().data.format
+                << " dst_format=" << convFwd_pd->dst_primitive_desc().desc().data.format << std::endl;
+      platform_format = static_cast<memory::format>(convFwd_pd->dst_primitive_desc().desc().data.format);
+    }
+#endif
+
     if (ic % 8 == 0) {
       std::cout << "##### NOT FIRST LAYER #####" << std::endl;
-      auto pmfmt = memory::format::nChw8c;
-      fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}}, mpcsn, pmfmt));
+      fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}},
+                                              default_data_type,
+                                              platform_format));
       fwd_prv_mpd.reset(new memory::primitive_desc(*fwd_prv_input_md,
                                                    cpu_engine));
     } else {
@@ -204,7 +232,7 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
 
     int32_t ic = this->channels_;
     if (fwd_inference_pd == NULL) {
-      LayerSetUp(data, out);
+      LayerSetUp(ctx, data, out);
       initFwd(in_data);
     }
 
