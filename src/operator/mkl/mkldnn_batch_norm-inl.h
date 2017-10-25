@@ -63,30 +63,81 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
   }
 
  private:
-  void LayerSetUp(const mshadow::Tensor<xpu, 4, DType> &data,
+  /**
+   * This method returns a data layout format by query what a MKLDNN convolution
+   * operator would use for a specific platform. For example, on BDW, we expect
+   * this to be a 8 width layout, while for SKL or KNL, it should be 16 wide.
+   * @param ctx
+   * @param default_data_type
+   * @return
+   */
+  memory::format GetPlatformPrvLayoutFormat(const OpContext &ctx,
+                                            const memory::data_type default_data_type) const {
+    mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
+    auto propagation =
+        (ctx.is_train) ? prop_kind::forward_training : prop_kind::forward_scoring;
+    // convolution primitive descriptor requires input, output, strides, padding
+    // to match certain requirements. So we can't use batchnorm input dimensions.
+    // These constants used are only for meeting these requirements.
+    memory::dims convolutionStrides{1, 1};
+    memory::dims padding{1, 1};
+    memory::format memory_format_any = memory::format::any;
+    memory::desc init_bottom_md({128, 3, 28, 28},
+                                default_data_type,
+                                memory_format_any);
+    memory::desc init_top_md({128, 16, 28, 28},
+                             default_data_type,
+                             memory_format_any);
+    memory::desc init_weights_md({16, 3, 3, 3},
+                                 default_data_type,
+                                 memory_format_any);
+    convolution_forward::desc convFwd_desc(propagation,
+                                           algorithm::convolution_direct,
+                                           init_bottom_md,
+                                           init_weights_md,
+                                           init_top_md,
+                                           convolutionStrides,
+                                           padding,
+                                           padding,
+                                           padding_kind::zero);
+    convolution_forward::primitive_desc convFwd_pd(convFwd_desc, cpu_engine);
+
+    return static_cast<memory::format>(convFwd_pd.dst_primitive_desc().desc().data.format);
+  }
+
+  void LayerSetUp(const OpContext &ctx,
+                  const mshadow::Tensor<xpu, 4, DType> &data,
                   const mshadow::Tensor<xpu, 4, DType> &out) {
     eps_ = param_.eps;
+    num_ = data.shape_[0];
     channels_ = data.shape_[1];
     height_ = data.shape_[2];
     width_ = data.shape_[3];
-    num_ = data.shape_[0];
     int32_t n = this->num_;
-    int32_t iw = this->width_;
-    int32_t ih = this->height_;
     int32_t ic = this->channels_;
-    memory::data_type mpcsn = memory::data_type::f32;
+    int32_t ih = this->height_;
+    int32_t iw = this->width_;
+    memory::data_type default_data_type = memory::data_type::f32;
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
+    // Set up usr memory descriptor
+    // by default we expect usr input format is nchw
     fwd_usr_input_md.reset(new memory::desc({{n, ic, ih, iw}},
-                                            mpcsn,
+                                            default_data_type,
                                             memory::format::nchw));
     fwd_usr_mpd.reset(new memory::primitive_desc(*fwd_usr_input_md,
                                                  cpu_engine));
-    /* auto pmfmt = ((__builtin_cpu_supports("avx2")) || */
-    /*                (__builtin_cpu_supports("avx"))) ? */
-    /*                memory::format::nChw8c : memory::format::nChw16c; */
+
+
+    // on BDW or SKL, where we expect AVX2 (nChw8c) and AVX512 (nChw16c) optimized layouts, they
+    // require the channel to be multiples of 8.
     if (ic % 8 == 0) {
-      auto pmfmt = memory::format::nChw8c;
-      fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}}, mpcsn, pmfmt));
+      // TODO lfeng: this is a workaround to query architecture specific layout
+      // for best performance
+      memory::format platform_prv_format = GetPlatformPrvLayoutFormat(ctx,
+                                                                  default_data_type);
+      fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}},
+                                              default_data_type,
+                                              platform_prv_format));
       fwd_prv_mpd.reset(new memory::primitive_desc(*fwd_prv_input_md,
                                                    cpu_engine));
     } else {
@@ -189,7 +240,7 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
 
     int32_t ic = this->channels_;
     if (fwd_inference_pd == NULL) {
-      LayerSetUp(data, out);
+      LayerSetUp(ctx, data, out);
       initFwd(in_data);
     }
 

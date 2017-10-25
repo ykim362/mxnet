@@ -34,8 +34,9 @@ namespace mxnet {
 namespace op {
 
 template<typename xpu, typename DType>
-class MKLDNNConvolutionOp : public Operator, public MKLDNNLayer<DType>,
-  public MKLConvCommon<xpu, DType> {
+class MKLDNNConvolutionOp : public Operator,
+                            public MKLDNNLayer<DType>,
+                            public MKLConvCommon<xpu, DType> {
  public:
   std::string getName() {
     std::string name = "MKLDNNConvolutionOp";
