@@ -134,7 +134,7 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
       // TODO lfeng: this is a workaround to query architecture specific layout
       // for best performance
       memory::format platform_prv_format = GetPlatformPrvLayoutFormat(ctx,
-                                                                  default_data_type);
+                                                                      default_data_type);
       fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}},
                                               default_data_type,
                                               platform_prv_format));
