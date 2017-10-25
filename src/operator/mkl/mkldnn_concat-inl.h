@@ -39,14 +39,14 @@
 namespace mxnet {
 namespace op {
 
-template<typename xpu, typename Dtype>
-class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
+template<typename xpu, typename DType>
+class MKLDNNConcatOp : public Operator, public MKLDNNLayer<DType> {
  public:
   static std::string getName() {
     std::string name = "MKLDNNConcatOp";
     return name;
   }
-  explicit MKLDNNConcatOp(ConcatParam param) : MKLDNNLayer<Dtype>()
+  explicit MKLDNNConcatOp(ConcatParam param) : MKLDNNLayer<DType>()
     , size_(param.num_args), dimension_(param.dim), split_channels_(param.num_args) {
     init_mkldnn_ = false;
   }
@@ -54,7 +54,7 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
   }
 
  private:
-  void LayerSetup(const std::vector<mshadow::Tensor<xpu, 4, Dtype> > &data,
+  void LayerSetup(const std::vector<mshadow::Tensor<xpu, 4, DType> > &data,
                   size_t data_shape_size) {
     for (size_t i = 1; i < size_; ++i) {
       for (size_t j = 1; j < data_shape_size; ++j) {
@@ -84,16 +84,16 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
 
     for (size_t i = 0; i < size_; ++i) {
       memory::format mfmt = mfmt_nchw;
-      fwd_bottom_data_.push_back(std::shared_ptr<MKLDNNData<Dtype> >());
+      fwd_bottom_data_.push_back(std::shared_ptr<MKLDNNData<DType> >());
       memory::dims input_tz = {n_, (int32_t)split_channels_[i], h_, w_};
 
       std::shared_ptr<memory::primitive_desc> prv_src_mpd;
       std::shared_ptr<memory::primitive_desc> usr_src_mpd(
         new memory::primitive_desc({input_tz, mtype, mfmt_nchw}, cpu_engine));
 
-      if (const_cast<Dtype*>(mkl_prv_data<Dtype>(in_data[i])) != NULL) {
-        std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > mem_descr
-          = get_mkldnn_prv_descriptor<Dtype>(in_data[i]);
+      if (const_cast<DType*>(mkl_prv_data<DType>(in_data[i])) != NULL) {
+        std::shared_ptr<MKLDNNMemoryDescriptor<DType> > mem_descr
+          = get_mkldnn_prv_descriptor<DType>(in_data[i]);
         mfmt = static_cast<memory::format>(
               mem_descr->prv_memory_pd()->desc().data.format);
         prv_src_mpd.reset(new memory::primitive_desc(
@@ -103,7 +103,7 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
       bottom_data_mpd.push_back(memory::primitive_desc(
           {input_tz, mtype, mfmt}, cpu_engine));
 
-      fwd_bottom_data_[i].reset(new MKLDNNData<Dtype>(usr_src_mpd, prv_src_mpd));
+      fwd_bottom_data_[i].reset(new MKLDNNData<DType>(usr_src_mpd, prv_src_mpd));
     }
 
     std::shared_ptr<memory::primitive_desc> usr_dst_mpd(new memory::primitive_desc(
@@ -114,7 +114,7 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
     std::shared_ptr<memory::primitive_desc> prv_dst_mpd(new memory::primitive_desc(
         fwd_pd->dst_primitive_desc()));
 
-    fwd_top_data_.reset(new MKLDNNData<Dtype>(usr_dst_mpd, prv_dst_mpd));
+    fwd_top_data_.reset(new MKLDNNData<DType>(usr_dst_mpd, prv_dst_mpd));
 
  }
 
@@ -128,36 +128,36 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
     CHECK_EQ(static_cast<int>(in_data.size()), size_);
     CHECK_EQ(out_data.size(), 1);
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    std::vector<Tensor<xpu, 4, Dtype> > data(size_);
-    Tensor<xpu, 4, Dtype> out;
+    std::vector<Tensor<xpu, 4, DType> > data(size_);
+    Tensor<xpu, 4, DType> out;
     if (in_data[0].ndim() == 2) {
       for (size_t i = 0; i < size_; ++i) {
         Shape<4> dshape = Shape4(in_data[i].shape_[0],
                                  in_data[i].shape_[1], 1, 1);
-        data[i] = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+        data[i] = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
           in_data[i], dshape, s);
       }
       Shape<4> dshape = Shape4(out_data[concat_enum::kOut].shape_[0],
                                out_data[concat_enum::kOut].shape_[1], 1, 1);
-      out = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      out = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_data[concat_enum::kOut], dshape, s);
     } else if (in_data[0].ndim() == 3) {
       for (size_t i = 0; i < size_; ++i) {
         Shape<4> dshape = Shape4(in_data[i].shape_[0],
           in_data[i].shape_[1], in_data[i].shape_[2], 1);
-        data[i] = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+        data[i] = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
           in_data[i], dshape, s);
       }
       Shape<4> dshape = Shape4(out_data[concat_enum::kOut].shape_[0],
         out_data[concat_enum::kOut].shape_[1],
         out_data[concat_enum::kOut].shape_[2], 1);
-      out = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      out = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_data[concat_enum::kOut], dshape, s);
     } else {
       for (size_t i = 0; i < size_; ++i) {
-        data[i] = mkl_experimental_direct_get<xpu, 4, Dtype>(in_data[i], s);
+        data[i] = mkl_experimental_direct_get<xpu, 4, DType>(in_data[i], s);
       }
-      out = mkl_experimental_direct_get<xpu, 4, Dtype>(out_data[concat_enum::kOut], s);
+      out = mkl_experimental_direct_get<xpu, 4, DType>(out_data[concat_enum::kOut], s);
     }
     
     if (!init_mkldnn_) {
@@ -185,8 +185,8 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
   }
 
   void InitConcatBwd(const std::vector<TBlob> &out_grad,
-                  const std::vector<mshadow::Tensor<xpu, 4, Dtype> > &data,
-                  const mshadow::Tensor<xpu, 4, Dtype> &out) {
+                  const std::vector<mshadow::Tensor<xpu, 4, DType> > &data,
+                  const mshadow::Tensor<xpu, 4, DType> &out) {
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
     memory::data_type mtype = memory::data_type::f32;
     memory::format mfmt_nchw = memory::format::nchw;
@@ -200,20 +200,20 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
         cpu_engine));
 
     bool top_diff_is_prv =
-      (const_cast<Dtype*>(mkl_prv_data<Dtype>(out_grad[concat_enum::kOut])) != NULL);
+      (const_cast<DType*>(mkl_prv_data<DType>(out_grad[concat_enum::kOut])) != NULL);
     if (top_diff_is_prv) {
-        std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > mem_descr
-          = get_mkldnn_prv_descriptor<Dtype>(out_grad[concat_enum::kOut]);
+        std::shared_ptr<MKLDNNMemoryDescriptor<DType> > mem_descr
+          = get_mkldnn_prv_descriptor<DType>(out_grad[concat_enum::kOut]);
         diff_dst_mfmt = static_cast<memory::format>(
             mem_descr->prv_memory_pd()->desc().data.format);
         prv_diff_dst_mpd.reset(new memory::primitive_desc(
               {input_tz, mtype, diff_dst_mfmt}, cpu_engine));
     }
 
-    bwd_top_diff_.reset(new MKLDNNData<Dtype>(usr_diff_dst_mpd, prv_diff_dst_mpd));
+    bwd_top_diff_.reset(new MKLDNNData<DType>(usr_diff_dst_mpd, prv_diff_dst_mpd));
 
     for (size_t i = 0; i < size_; ++i) {
-      bwd_bottom_diff_.push_back(std::shared_ptr<MKLDNNData<Dtype> >());
+      bwd_bottom_diff_.push_back(std::shared_ptr<MKLDNNData<DType> >());
       bwd_pd.push_back(std::shared_ptr<reorder::primitive_desc>());
       memory::dims dims = {n_, (int32_t)split_channels_[i], h_, w_};
       std::shared_ptr<memory::primitive_desc> usr_diff_src_mpd(
@@ -222,7 +222,7 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
       std::shared_ptr<memory::primitive_desc> prv_diff_src_mpd(
         new memory::primitive_desc({dims, mtype, diff_dst_mfmt},
             cpu_engine));
-      bwd_bottom_diff_[i].reset(new MKLDNNData<Dtype>(
+      bwd_bottom_diff_[i].reset(new MKLDNNData<DType>(
             usr_diff_src_mpd, prv_diff_src_mpd));
 
       auto view_pd = top_diff_is_prv ?
@@ -245,35 +245,35 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
     CHECK_EQ(out_grad.size(), 1);
     CHECK_EQ(in_grad.size(), static_cast<size_t>(size_));
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    std::vector<Tensor<xpu, 4, Dtype> > grad_in(size_);
-    Tensor<xpu, 4, Dtype> grad;
+    std::vector<Tensor<xpu, 4, DType> > grad_in(size_);
+    Tensor<xpu, 4, DType> grad;
     if (in_grad[0].ndim() == 2) {
       Shape<4> dshape = Shape4(out_grad[concat_enum::kOut].shape_[0],
         out_grad[concat_enum::kOut].shape_[1], 1, 1);
-      grad = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      grad = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_grad[concat_enum::kOut], dshape, s);
       for (size_t i = 0; i < size_; ++i) {
         dshape = Shape4(in_grad[i].shape_[0],
           in_grad[i].shape_[1], 1, 1);
-        grad_in[i] = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+        grad_in[i] = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
           in_grad[i], dshape, s);
       }
     } else if (in_grad[0].ndim() == 3) {
       Shape<4> dshape = Shape4(out_grad[concat_enum::kOut].shape_[0],
         out_grad[concat_enum::kOut].shape_[1],
         out_grad[concat_enum::kOut].shape_[2], 1);
-      grad = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+      grad = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
         out_grad[concat_enum::kOut], dshape, s);
       for (size_t i = 0; i < size_; ++i) {
         dshape = Shape4(in_grad[i].shape_[0],
           in_grad[i].shape_[1], in_grad[i].shape_[2], 1);
-        grad_in[i] = mkl_experimental_direct_get_with_shape<xpu, 4, Dtype>(
+        grad_in[i] = mkl_experimental_direct_get_with_shape<xpu, 4, DType>(
           in_grad[i], dshape, s);
       }
     } else {
-      grad = mkl_experimental_direct_get<xpu, 4, Dtype>(out_grad[concat_enum::kOut], s);
+      grad = mkl_experimental_direct_get<xpu, 4, DType>(out_grad[concat_enum::kOut], s);
       for (size_t i = 0; i < size_; ++i) {
-        grad_in[i] = mkl_experimental_direct_get<xpu, 4, Dtype>(in_grad[i], s);
+        grad_in[i] = mkl_experimental_direct_get<xpu, 4, DType>(in_grad[i], s);
       }
     }
 
@@ -295,7 +295,7 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
      std::shared_ptr<memory> bwd_reorder_output_memory =
       bwd_bottom_diff_[i]->create_output_memory(grad_in[i].dptr_, in_grad[i], bwd_bottom_diff_[i]);
 
-     MKLDNNPrimitive<Dtype> concatBwd;
+     MKLDNNPrimitive<DType> concatBwd;
      concatBwd.reset(
         new reorder(*bwd_pd[i], *bwd_reorder_input_memory, *bwd_reorder_output_memory));
      concatBwd.submit();
@@ -309,11 +309,11 @@ class MKLDNNConcatOp : public Operator, public MKLDNNLayer<Dtype> {
   bool init_mkldnn_;
   std::vector<size_t> split_channels_;
 
-  std::shared_ptr<MKLDNNData<Dtype> > fwd_top_data_;
-  std::vector< std::shared_ptr<MKLDNNData<Dtype> > > fwd_bottom_data_;
-  std::shared_ptr<MKLDNNData<Dtype> > bwd_top_diff_;
-  std::vector< std::shared_ptr<MKLDNNData<Dtype> > > bwd_bottom_diff_;
-  MKLDNNPrimitive<Dtype> concatFwd;
+  std::shared_ptr<MKLDNNData<DType> > fwd_top_data_;
+  std::vector< std::shared_ptr<MKLDNNData<DType> > > fwd_bottom_data_;
+  std::shared_ptr<MKLDNNData<DType> > bwd_top_diff_;
+  std::vector< std::shared_ptr<MKLDNNData<DType> > > bwd_bottom_diff_;
+  MKLDNNPrimitive<DType> concatFwd;
   std::vector<std::shared_ptr<memory>> inputs;
   std::vector<primitive::at> inputs_at;
   std::vector<memory::primitive_desc> bottom_data_mpd;

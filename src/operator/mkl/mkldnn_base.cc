@@ -39,8 +39,8 @@ std::shared_ptr<MKLDNNStream> StreamHolder::get_stream() {
     return _current_stream;
 }
 
-template <typename Dtype>
-std::shared_ptr<MKLDNNStream>  MKLDNNPrimitive<Dtype>::get_mkldnn_stream() {
+template <typename DType>
+std::shared_ptr<MKLDNNStream>  MKLDNNPrimitive<DType>::get_mkldnn_stream() {
     if (mkldnn_stream == NULL)
         mkldnn_stream = StreamHolder::Instance().get_stream();
     else
@@ -48,8 +48,8 @@ std::shared_ptr<MKLDNNStream>  MKLDNNPrimitive<Dtype>::get_mkldnn_stream() {
     return mkldnn_stream;
 }
 
-template <typename Dtype>
-std::shared_ptr<MKLDNNStream>  MKLDNNPrimitive<Dtype>::submit() {
+template <typename DType>
+std::shared_ptr<MKLDNNStream>  MKLDNNPrimitive<DType>::submit() {
     CHECK(this->aprimitive);
     try {
         this->get_mkldnn_stream()->submit({*(this->aprimitive)}).wait();

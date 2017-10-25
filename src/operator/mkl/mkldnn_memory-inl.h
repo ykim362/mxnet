@@ -41,22 +41,22 @@ using namespace mkldnn;
 
 namespace mxnet {
 
-template <typename Dtype>
+template <typename DType>
 struct MKLDNNMemoryDescriptorBase : public PrvMemDescr,
- public std::enable_shared_from_this<MKLDNNMemoryDescriptorBase<Dtype> > {
+ public std::enable_shared_from_this<MKLDNNMemoryDescriptorBase<DType> > {
     MKLDNNMemoryDescriptorBase(std::shared_ptr<memory::primitive_desc> usr_memory_pd
         , std::shared_ptr<memory::primitive_desc> prv_memory_pd);
 
     ~MKLDNNMemoryDescriptorBase() {
     }
-    std::shared_ptr<MKLDNNMemoryDescriptorBase<Dtype> > get_shared_ptr() {
+    std::shared_ptr<MKLDNNMemoryDescriptorBase<DType> > get_shared_ptr() {
       return this->shared_from_this();
     }
     // ---- PrvMemDescr virtual functions -----
     void allocate() {
       if (_prv_memory == nullptr) {
         _prv_memory = std::shared_ptr<memory>(new memory(*_prv_memory_pd));
-        _internal_ptr = reinterpret_cast<Dtype *>(_prv_memory->get_data_handle());
+        _internal_ptr = reinterpret_cast<DType *>(_prv_memory->get_data_handle());
         _internal_size = prv_size();
       }
     }
@@ -95,7 +95,7 @@ struct MKLDNNMemoryDescriptorBase : public PrvMemDescr,
       return _internal_ptr;
     }
     virtual size_t prv_size() { return _prv_memory_pd->get_size(); }
-    virtual size_t prv_count() { return prv_size() / sizeof(Dtype); }
+    virtual size_t prv_count() { return prv_size() / sizeof(DType); }
 
     virtual bool layout_compare(std::shared_ptr<PrvMemDescr> other);
     virtual PrvDescrType get_descr_type() { return PRV_DESCR_MKLDNN; }
@@ -113,7 +113,7 @@ struct MKLDNNMemoryDescriptorBase : public PrvMemDescr,
     void set_prv_memory(std::shared_ptr<memory> memory) {
         _prv_memory = memory;
         if (_prv_memory == nullptr) {
-          _internal_ptr = reinterpret_cast<Dtype *>(_prv_memory->get_data_handle());
+          _internal_ptr = reinterpret_cast<DType *>(_prv_memory->get_data_handle());
           _internal_size = prv_size();
         } else {
           VLOG(1) << "Set NULL Prv Memory";
@@ -126,14 +126,14 @@ struct MKLDNNMemoryDescriptorBase : public PrvMemDescr,
     bool _usr_memory_pd_not_null;
     bool _prv_memory_pd_not_null;
     std::shared_ptr<memory> _prv_memory;
-    Dtype* _internal_ptr;
+    DType* _internal_ptr;
     int  _internal_size;
     std::shared_ptr<memory> _usr_memory;
     void* _dbg_cpu_ptr;
 };
 
-template <typename Dtype>
-class MKLDNNMemoryDescriptor : public MKLDNNMemoryDescriptorBase<Dtype> {
+template <typename DType>
+class MKLDNNMemoryDescriptor : public MKLDNNMemoryDescriptorBase<DType> {
  public:
     MKLDNNMemoryDescriptor(std::shared_ptr<memory::primitive_desc> usr_memory_pd
         , std::shared_ptr<memory::primitive_desc> prv_memory_pd);
@@ -149,37 +149,37 @@ class MKLDNNMemoryDescriptor : public MKLDNNMemoryDescriptorBase<Dtype> {
 
     // The last get_blob_data_ptr() argument is a hack for reusing
     // in backward a conversion done already in the forward direction.
-    std::shared_ptr<memory> get_converted_prv(Dtype* cpu_data,
+    std::shared_ptr<memory> get_converted_prv(DType* cpu_data,
       bool set_prv_ptr, const TBlob &blob);
-    void sync_converted_prv(Dtype* cpu_data, bool set_prv_ptr, const TBlob &tblob);
-    std::shared_ptr<memory> create_output_memory(Dtype* cpu_data, const TBlob &blob,
-        std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > thisData = nullptr, bool in_place = false);
+    void sync_converted_prv(DType* cpu_data, bool set_prv_ptr, const TBlob &tblob);
+    std::shared_ptr<memory> create_output_memory(DType* cpu_data, const TBlob &blob,
+        std::shared_ptr<MKLDNNMemoryDescriptor<DType> > thisData = nullptr, bool in_place = false);
     void sync_output_memory(const TBlob &blob,
-        std::shared_ptr<MKLDNNMemoryDescriptor<Dtype> > thisData = nullptr, bool in_place = false);
+        std::shared_ptr<MKLDNNMemoryDescriptor<DType> > thisData = nullptr, bool in_place = false);
 
     std::shared_ptr<primitive>  reorder_usr2prv() { return _reorder_usr2prv.aprimitive; }
     std::shared_ptr<primitive>  reorder_prv2usr() { return _reorder_prv2usr.aprimitive; }
 
  private:
-    MKLDNNPrimitive<Dtype> _reorder_usr2prv;
-    MKLDNNPrimitive<Dtype> _reorder_prv2usr;
+    MKLDNNPrimitive<DType> _reorder_usr2prv;
+    MKLDNNPrimitive<DType> _reorder_prv2usr;
 };
 
-template <typename Dtype>
-class MKLDNNData : public MKLDNNMemoryDescriptor<Dtype> {
+template <typename DType>
+class MKLDNNData : public MKLDNNMemoryDescriptor<DType> {
  public:
     MKLDNNData(std::shared_ptr<memory::primitive_desc> usr_memory_pd
         , std::shared_ptr<memory::primitive_desc> prv_memory_pd)
-        : MKLDNNMemoryDescriptor<Dtype>(usr_memory_pd, prv_memory_pd) {}
+        : MKLDNNMemoryDescriptor<DType>(usr_memory_pd, prv_memory_pd) {}
 };
 
-template <typename Dtype>
-std::shared_ptr<MKLDNNData<Dtype> >
+template <typename DType>
+std::shared_ptr<MKLDNNData<DType> >
 get_mkldnn_prv_descriptor(std::shared_ptr<MKLMemHolder> blob);
 
-template <typename Dtype>
-inline std::shared_ptr<MKLDNNData<Dtype> > get_mkldnn_prv_descriptor(const TBlob &b) {
-  return get_mkldnn_prv_descriptor<Dtype>(b.Mkl_mem_);
+template <typename DType>
+inline std::shared_ptr<MKLDNNData<DType> > get_mkldnn_prv_descriptor(const TBlob &b) {
+  return get_mkldnn_prv_descriptor<DType>(b.Mkl_mem_);
 }
 
 template<typename DType>
