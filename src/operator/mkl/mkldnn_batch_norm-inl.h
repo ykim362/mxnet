@@ -71,26 +71,38 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
    * @param default_data_type
    * @return
    */
-  memory::format GetPlatformLayoutFormat(const OpContext &ctx,
-                                   const memory::data_type default_data_type) {
+  memory::format GetPlatformPrvLayoutFormat(const OpContext &ctx,
+                                            const memory::data_type default_data_type) const {
     mkldnn::engine cpu_engine = CpuEngine::Instance().get_engine();
     auto propagation =
         (ctx.is_train) ? prop_kind::forward_training : prop_kind::forward_scoring;
+    // convolution primitive descriptor requires input, output, strides, padding
+    // to match certain requirements. So we can't use batchnorm input dimensions.
+    // These constants used are only for meeting these requirements.
     memory::dims convolutionStrides{1, 1};
     memory::dims padding{1, 1};
     memory::format memory_format_any = memory::format::any;
-    memory::desc init_bottom_md({128, 3, 28, 28}, default_data_type, memory_format_any);
-    memory::desc init_top_md({128, 16, 28, 28}, default_data_type, memory_format_any);
-    memory::desc init_weights_md({16, 3, 3, 3}, default_data_type, memory_format_any);
-    std::shared_ptr<convolution_forward::desc> convFwd_desc;
-    convFwd_desc.reset(
-        new convolution_forward::desc(propagation, algorithm::convolution_direct
-            , init_bottom_md, init_weights_md, init_top_md
-            , convolutionStrides, padding, padding, padding_kind::zero));
-    std::shared_ptr<convolution_forward::primitive_desc> convFwd_pd;
-    convFwd_pd.reset(new convolution_forward::primitive_desc(*convFwd_desc, cpu_engine));
+    memory::desc init_bottom_md({128, 3, 28, 28},
+                                default_data_type,
+                                memory_format_any);
+    memory::desc init_top_md({128, 16, 28, 28},
+                             default_data_type,
+                             memory_format_any);
+    memory::desc init_weights_md({16, 3, 3, 3},
+                                 default_data_type,
+                                 memory_format_any);
+    convolution_forward::desc convFwd_desc(propagation,
+                                           algorithm::convolution_direct,
+                                           init_bottom_md,
+                                           init_weights_md,
+                                           init_top_md,
+                                           convolutionStrides,
+                                           padding,
+                                           padding,
+                                           padding_kind::zero);
+    convolution_forward::primitive_desc convFwd_pd(convFwd_desc, cpu_engine);
 
-    return static_cast<memory::format>(convFwd_pd->dst_primitive_desc().desc().data.format);
+    return static_cast<memory::format>(convFwd_pd.dst_primitive_desc().desc().data.format);
   }
 
   void LayerSetUp(const OpContext &ctx,
@@ -121,11 +133,11 @@ class MKLDNNBatchNormOp : public Operator, public MKLDNNLayer<DType> {
     if (ic % 8 == 0) {
       // TODO lfeng: this is a workaround to query architecture specific layout
       // for best performance
-      memory::format platform_format = GetPlatformLayoutFormat(ctx,
-                                                               default_data_type);
+      memory::format platform_prv_format = GetPlatformPrvLayoutFormat(ctx,
+                                                                  default_data_type);
       fwd_prv_input_md.reset(new memory::desc({{n, ic, ih, iw}},
                                               default_data_type,
-                                              platform_format));
+                                              platform_prv_format));
       fwd_prv_mpd.reset(new memory::primitive_desc(*fwd_prv_input_md,
                                                    cpu_engine));
     } else {
