@@ -96,8 +96,8 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
       auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
       workspace.reset(new memory(workspace_primitive_desc));
       rnnFwd.reset(new rnn_forward(
-          *rnnFwd_pd, x_p_f.get(), hx_p_f.get(), cx_p_f.get(), w_p_f.get(),
-          y_m_f.get(), hy_m_f.get(), cy_m_f.get(), workspace.get()));
+          *rnnFwd_pd, *x_p_f, *hx_p_f, *cx_p_f, *w_p_f,
+          *y_m_f, *hy_m_f, *cy_m_f, *workspace));
     }
     rnnFwd.submit();
   }
@@ -192,9 +192,9 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
         workspace.reset(new memory(workspace_primitive_desc));
       }
       rnnBwd.reset(new rnn_backward(
-          *rnnBwd_pd, x_p_b.get(), hx_p_b.get(), cx_p_b.get(), dy_p_b.get(),
-          dhy_p_b.get(), dcy_p_b.get(), w_p_b.get(), workspace.get(),
-          dx_m_b.get(), dhx_m_b.get(), dcx_m_b.get(), dw_m_b.get()));
+          *rnnBwd_pd, *x_p_b, *hx_p_b, *cx_p_b, *dy_p_b,
+          *dhy_p_b, *dcy_p_b, *w_p_b, *workspace,
+          *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
     }
     rnnBwd.submit();
   }
