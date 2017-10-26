@@ -24,13 +24,29 @@
 */
 
 #include "./rnn-inl.h"
+#if MXNET_USE_MKLDNN == 1
+#include <mkl_memory.h>
+#include "./mkl/mkldnn_memory-inl.h"
+#include "./mkl/mkldnn_rnn-inl.h"
+#endif
 
 namespace mxnet {
 namespace op {
 template<>
 Operator *CreateOp<cpu>(RNNParam param, int dtype) {
-  LOG(FATAL) << "RNN is only available for gpu at the moment.";
   Operator *op = NULL;
+#if MXNET_USE_MKLDNN == 1
+  if (param.mode != rnn_enum::kGru) {
+    switch (dtype) {
+    case mshadow::kFloat32:
+      return new MKLDNNRnnOp<cpu, float>(param);
+    default:
+      break;
+    }
+  }
+  LOG(FATAL) << "MKLDNN RNN does not support GRU mode at the moment.";
+#endif
+  LOG(FATAL) << "RNN on CPU is only available with MXNET_USE_MKLDNN at the moment.";
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     op = new RNNOp<cpu, DType>(param);
   });
