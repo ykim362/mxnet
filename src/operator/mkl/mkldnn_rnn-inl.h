@@ -85,12 +85,15 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
           w_f->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
       hx_p_f =
           hx_f->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
+      if (cx_ptr != nullptr)
       cx_p_f =
           hx_f->get_converted_prv(cx_ptr, false, in_data[rnn_enum::kStateCell]);
       y_m_f = y_f->create_output_memory(y.dptr_, out_data[rnn_enum::kOut], y_f);
-      hy_m_f = hx_f->create_output_memory(hy_ptr, out_data[rnn_enum::kStateOut],
+      if (hy_ptr != nullptr)
+      hy_m_f = hy_f->create_output_memory(hy_ptr, out_data[rnn_enum::kStateOut],
                                           hx_f);
-      cy_m_f = hx_f->create_output_memory(
+      if (cy_ptr != nullptr)
+      cy_m_f = cy_f->create_output_memory(
           cy_ptr, out_data[rnn_enum::kStateCellOut], hx_f);
       std::shared_ptr<memory> workspace;
       auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
@@ -289,6 +292,8 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     std::shared_ptr<memory::primitive_desc> hx_mpd(
         new memory::primitive_desc(hx_desc, cpu_engine));
     hx_f.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    hy_f.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    cy_f.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
     std::shared_ptr<memory::primitive_desc> y_mpd(
         new memory::primitive_desc(y_desc, cpu_engine));
     y_f.reset(new MKLDNNData<DType>(y_mpd, prv_mpd));
