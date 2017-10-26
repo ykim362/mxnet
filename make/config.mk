@@ -40,7 +40,7 @@ USE_SIGNAL_HANDLER =
 ADD_LDFLAGS =
 
 # the additional compile flags you want to add
-ADD_CFLAGS =
+ADD_CFLAGS = -g -O1
 
 #---------------------------------------------
 # matrix computation libraries for CPU/GPU

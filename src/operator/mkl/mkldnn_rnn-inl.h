@@ -56,22 +56,22 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     CHECK_EQ(out_data.size(), out_expected);
     Stream<xpu> *s = ctx.get_stream<xpu>();
     // get input + output tensors
-    Tensor<xpu, 3, DType> x = in_data[rnn_enum::kData].get<xpu, 3, DType>(s);
-    Tensor<xpu, 1, DType> w = in_data[rnn_enum::kParams].get<xpu, 1, DType>(s);
-    Tensor<xpu, 3, DType> hx = in_data[rnn_enum::kState].get<xpu, 3, DType>(s);
-    Tensor<xpu, 3, DType> y = out_data[rnn_enum::kOut].get<xpu, 3, DType>(s);
+    Tensor<xpu, 3, DType> x = mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kData],s);
+    Tensor<xpu, 1, DType> w = mkl_experimental_direct_get<xpu, 1, DType>(in_data[rnn_enum::kParams],s);
+    Tensor<xpu, 3, DType> hx = mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kState],s);
+    Tensor<xpu, 3, DType> y = mkl_experimental_direct_get<xpu, 3, DType>(out_data[rnn_enum::kOut],s);
 
     DType *hy_ptr = nullptr;
     if (param_.state_outputs)
-      hy_ptr = out_data[rnn_enum::kStateOut].get<xpu, 3, DType>(s).dptr_;
+      hy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(out_data[rnn_enum::kStateOut],s).dptr_;
 
     DType *cx_ptr = nullptr;
     DType *cy_ptr = nullptr;
 
     if (param_.lstm_q_)
-      cx_ptr = (in_data[rnn_enum::kStateCell].get<xpu, 3, DType>(s)).dptr_;
+      cx_ptr = mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kStateCell],s).dptr_;
     if (param_.lstm_q_ && param_.state_outputs)
-      cy_ptr = (out_data[rnn_enum::kStateCellOut].get<xpu, 3, DType>(s)).dptr_;
+      cy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(out_data[rnn_enum::kStateCellOut],s).dptr_;
 
     CHECK_EQ(x.CheckContiguous(), true);
     CHECK_EQ(w.CheckContiguous(), true);
@@ -124,21 +124,21 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
         << "AddTo is not supported for state";
     Stream<xpu> *s = ctx.get_stream<xpu>();
     // get input + output tensors
-    Tensor<xpu, 3, DType> x = in_data[rnn_enum::kData].get<xpu, 3, DType>(s);
-    Tensor<xpu, 3, DType> dx = in_grad[rnn_enum::kData].get<xpu, 3, DType>(s);
-    Tensor<xpu, 1, DType> w = in_data[rnn_enum::kParams].get<xpu, 1, DType>(s);
-    Tensor<xpu, 1, DType> dw = in_grad[rnn_enum::kParams].get<xpu, 1, DType>(s);
-    Tensor<xpu, 3, DType> hx = in_data[rnn_enum::kState].get<xpu, 3, DType>(s);
-    Tensor<xpu, 3, DType> dhx = in_grad[rnn_enum::kState].get<xpu, 3, DType>(s);
-    Tensor<xpu, 3, DType> y = out_data[rnn_enum::kOut].get<xpu, 3, DType>(s);
-    Tensor<xpu, 3, DType> dy = out_grad[rnn_enum::kOut].get<xpu, 3, DType>(s);
+    Tensor<xpu, 3, DType> x = mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kData],s);
+    Tensor<xpu, 3, DType> dx = mkl_experimental_direct_get<xpu, 3, DType>(in_grad[rnn_enum::kData],s);
+    Tensor<xpu, 1, DType> w = mkl_experimental_direct_get<xpu, 1, DType>(in_data[rnn_enum::kParams],s);
+    Tensor<xpu, 1, DType> dw = mkl_experimental_direct_get<xpu, 1, DType>(in_grad[rnn_enum::kParams],s);
+    Tensor<xpu, 3, DType> hx = mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kState],s);
+    Tensor<xpu, 3, DType> dhx = mkl_experimental_direct_get<xpu, 3, DType>(in_grad[rnn_enum::kState],s);
+    Tensor<xpu, 3, DType> y = mkl_experimental_direct_get<xpu, 3, DType>(out_data[rnn_enum::kOut],s);
+    Tensor<xpu, 3, DType> dy = mkl_experimental_direct_get<xpu, 3, DType>(out_grad[rnn_enum::kOut],s);
     if (req[rnn_enum::kParams] != kAddTo) {
       dw = mshadow::expr::ScalarExp<DType>(0.0f);
     }
     // only need kStateOut grad output_states is true
     DType *dhy_ptr = nullptr;
     if (param_.state_outputs)
-      dhy_ptr = out_grad[rnn_enum::kStateOut].get<xpu, 3, DType>(s).dptr_;
+      dhy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(out_grad[rnn_enum::kStateOut],s).dptr_;
 
     // Deal with lstm
     DType *dcx_ptr = nullptr;
@@ -148,11 +148,11 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     if (param_.mode == rnn_enum::kLstm) {
       CHECK_NE(req[rnn_enum::kStateCell], kAddTo)
           << "AddTo is not supported for state cell";
-      cx_ptr = (in_data[rnn_enum::kStateCell].get<xpu, 3, DType>(s)).dptr_;
-      dcx_ptr = (in_grad[rnn_enum::kStateCell].get<xpu, 3, DType>(s)).dptr_;
+      cx_ptr = mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kStateCell],s).dptr_;
+      dcx_ptr = mkl_experimental_direct_get<xpu, 3, DType>(in_grad[rnn_enum::kStateCell],s).dptr_;
     }
     if ((param_.mode == rnn_enum::kLstm) && param_.state_outputs)
-      dcy_ptr = (out_grad[rnn_enum::kStateCellOut].get<xpu, 3, DType>(s)).dptr_;
+      dcy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(out_grad[rnn_enum::kStateCellOut],s).dptr_;
 
     CHECK_EQ(x.CheckContiguous(), true);
     CHECK_EQ(w.CheckContiguous(), true);
