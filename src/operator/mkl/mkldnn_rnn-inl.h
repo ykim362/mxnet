@@ -48,7 +48,8 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                        const std::vector<OpReqType> &req,
                        const std::vector<TBlob> &out_data,
                        const std::vector<TBlob> &aux_args) {
-    using namespace mshadow;
+    using mshadow::Stream;
+    using mshadow::Tensor;
     size_t in_expected = param_.lstm_q_ ? 4 : 3;
     size_t out_expected = param_.lstm_q_ ? 3 : 2;
     if (!param_.state_outputs) out_expected = 1;
@@ -111,8 +112,21 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
         auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
         workspace.reset(new memory(workspace_primitive_desc));
       }
-      rnnFwd.reset(new rnn_forward(*rnnFwd_pd, *x_p_f, *hx_p_f, *cx_p_f, *w_p_f,
-                                   *y_m_f, *hy_m_f, *cy_m_f, *workspace));
+      rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
+                                   primitive::at(*x_p_f),
+                                   primitive::at(*hx_p_f),
+                                   primitive::at(*w_p_f),
+                                   (*y_m_f),
+                                   (*workspace)));
+//      rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
+//                                   primitive::at(*x_p_f),
+//                                   primitive::at(*hx_p_f),
+//                                   primitive::at(*cx_p_f),
+//                                   primitive::at(*w_p_f),
+//                                   (*y_m_f),
+//                                   (*hy_m_f),
+//                                   (*cy_m_f),
+//                                   (*workspace)));
     }
     rnnFwd.submit();
   }
