@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
+# Tests require MXNet built with Intel MKLDNN library
 import mxnet as mx
 import numpy as np
 from numpy.testing import assert_allclose
@@ -37,7 +39,7 @@ def check_rnn_consistency(cell1, cell2):
     args = cell2.pack_weights(args)
     mod2.set_params(args, auxs)
 
-    batch=mx.io.DataBatch(data=[mx.random.uniform(shape=dshape)], label=[])
+    batch = mx.io.DataBatch(data=[mx.random.uniform(shape=dshape)], label=[])
     mod1.forward(batch, is_train=False)
     mod2.forward(batch, is_train=False)
 
