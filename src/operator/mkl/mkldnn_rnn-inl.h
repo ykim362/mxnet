@@ -56,7 +56,9 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
 
     CHECK_EQ(in_data.size(), in_expected);
     CHECK_EQ(out_data.size(), out_expected);
+
     Stream<xpu> *s = ctx.get_stream<xpu>();
+
     // get input + output tensors
     Tensor<xpu, 3, DType> x =
         mkl_experimental_direct_get<xpu, 3, DType>(in_data[rnn_enum::kData], s);
@@ -67,24 +69,6 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     Tensor<xpu, 3, DType> y =
         mkl_experimental_direct_get<xpu, 3, DType>(out_data[rnn_enum::kOut], s);
 
-    DType *hy_ptr = nullptr;
-    if (param_.state_outputs)
-      hy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(
-                   out_data[rnn_enum::kStateOut], s)
-                   .dptr_;
-
-    DType *cx_ptr = nullptr;
-    DType *cy_ptr = nullptr;
-
-    if (param_.lstm_q_)
-      cx_ptr = mkl_experimental_direct_get<xpu, 3, DType>(
-                   in_data[rnn_enum::kStateCell], s)
-                   .dptr_;
-    if (param_.lstm_q_ && param_.state_outputs)
-      cy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(
-                   out_data[rnn_enum::kStateCellOut], s)
-                   .dptr_;
-
     CHECK_EQ(x.CheckContiguous(), true);
     CHECK_EQ(w.CheckContiguous(), true);
     CHECK_EQ(hx.CheckContiguous(), true);
@@ -92,42 +76,91 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
 
     if (!init_mkldnn_) {
       LayerSetup(ctx, in_data, out_data);
-      x_p_f = x_f->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
-      w_p_f =
-          w_f->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
-      hx_p_f =
-          hx_f->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
-      if (cx_ptr != nullptr)
-        cx_p_f = hx_f->get_converted_prv(cx_ptr, false,
-                                         in_data[rnn_enum::kStateCell]);
-      y_m_f = y_f->create_output_memory(y.dptr_, out_data[rnn_enum::kOut], y_f);
-      if (hy_ptr != nullptr)
-        hy_m_f = hy_f->create_output_memory(
-            hy_ptr, out_data[rnn_enum::kStateOut], hx_f);
-      if (cy_ptr != nullptr)
-        cy_m_f = cy_f->create_output_memory(
-            cy_ptr, out_data[rnn_enum::kStateCellOut], hx_f);
-      std::shared_ptr<memory> workspace;
-      if (ctx.is_train) {
-        auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
-        workspace.reset(new memory(workspace_primitive_desc));
-      }
+    }
+    // standard inputs/outputs
+    x_p_f = x_f->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
+    w_p_f =
+        w_f->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
+    hx_p_f =
+        hx_f->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
+    y_m_f = y_f->create_output_memory(y.dptr_, out_data[rnn_enum::kOut], y_f);
+
+    // extra inputs/outputs
+    DType *hy_ptr = nullptr;
+    if (param_.state_outputs) {
+      hy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(
+                   out_data[rnn_enum::kStateOut], s)
+                   .dptr_;
+      assert(hy_ptr != nullptr);
+      hy_m_f = hy_f->create_output_memory(hy_ptr,
+                                          out_data[rnn_enum::kStateOut],
+                                          hx_f);
+    }
+
+    DType *cx_ptr = nullptr;
+    if (param_.lstm_q_) {
+      cx_ptr = mkl_experimental_direct_get<xpu, 3, DType>(
+                   in_data[rnn_enum::kStateCell], s)
+                   .dptr_;
+      assert(cx_ptr != nullptr);
+      cx_p_f = hx_f->get_converted_prv(cx_ptr,
+                                       false,
+                                       in_data[rnn_enum::kStateCell]);
+    }
+
+    DType *cy_ptr = nullptr;
+    if (param_.lstm_q_ && param_.state_outputs) {
+      cy_ptr = mkl_experimental_direct_get<xpu, 3, DType>(
+                   out_data[rnn_enum::kStateCellOut], s)
+                   .dptr_;
+      assert(cy_ptr != nullptr);
+      cy_m_f = cy_f->create_output_memory(cy_ptr,
+                                          out_data[rnn_enum::kStateCellOut],
+                                          hx_f);
+    }
+
+    // lstm & state_outputs
+    if (param_.lstm_q_ && param_.state_outputs) {
+      rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
+                                   primitive::at(*x_p_f),
+                                   primitive::at(*hx_p_f),
+                                   primitive::at(*cx_p_f),
+                                   primitive::at(*w_p_f),
+                                   *y_m_f,
+                                   *hy_m_f,
+                                   *cy_m_f,
+                                   *workspace_m_f));
+    }
+    // lstm
+    else if (param_.lstm_q_) {
+      rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
+                                   primitive::at(*x_p_f),
+                                   primitive::at(*hx_p_f),
+                                   primitive::at(*cx_p_f),
+                                   primitive::at(*w_p_f),
+                                   *y_m_f,
+                                   *workspace_m_f));
+    }
+    // state_outputs
+    else if (param_.state_outputs) {
       rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
                                    primitive::at(*x_p_f),
                                    primitive::at(*hx_p_f),
                                    primitive::at(*w_p_f),
-                                   (*y_m_f),
-                                   (*workspace)));
-//      rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
-//                                   primitive::at(*x_p_f),
-//                                   primitive::at(*hx_p_f),
-//                                   primitive::at(*cx_p_f),
-//                                   primitive::at(*w_p_f),
-//                                   (*y_m_f),
-//                                   (*hy_m_f),
-//                                   (*cy_m_f),
-//                                   (*workspace)));
+                                   *y_m_f,
+                                   *hy_m_f,
+                                   *workspace_m_f));
     }
+    // standard
+    else {
+      rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
+                                   primitive::at(*x_p_f),
+                                   primitive::at(*hx_p_f),
+                                   primitive::at(*w_p_f),
+                                   *y_m_f,
+                                   *workspace_m_f));
+    }
+
     rnnFwd.submit();
   }
 
@@ -341,27 +374,78 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     std::shared_ptr<memory::primitive_desc> w_mpd(
         new memory::primitive_desc(w_desc, cpu_engine));
     w_f.reset(new MKLDNNData<DType>(w_mpd, prv_mpd));
+
+    if (ctx.is_train) {
+      auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
+      workspace_m_f.reset(new memory(workspace_primitive_desc));
+    }
   }
 
   bool init_mkldnn_;
   RNNParam param_;
 
+  using MKLDNNDataPtr = std::shared_ptr<MKLDNNData<DType>>;
+  using PrimitivePtr = std::shared_ptr<primitive>;
+  using MemoryPtr = std::shared_ptr<memory>;
+
   // Forward vars
   MKLDNNPrimitive<DType> rnnFwd;
   std::shared_ptr<rnn_forward::primitive_desc> rnnFwd_pd;
-  std::shared_ptr<MKLDNNData<DType> > x_f, hx_f, cx_f, w_f, y_f, hy_f, cy_f,
-      workspace_f;
-  std::shared_ptr<primitive> x_p_f, hx_p_f, cx_p_f, w_p_f;
-  std::shared_ptr<memory> y_m_f, hy_m_f, cy_m_f, workspace_m_f;
+
+  // inputs
+  MKLDNNDataPtr x_f;
+  PrimitivePtr x_p_f;
+  MKLDNNDataPtr hx_f;
+  PrimitivePtr hx_p_f;
+  MKLDNNDataPtr w_f;
+  PrimitivePtr w_p_f;
+  /// lstm
+  MKLDNNDataPtr cx_f;
+  /// lstm
+  PrimitivePtr cx_p_f;
+
+  // outputs
+  MKLDNNDataPtr y_f;
+  MemoryPtr y_m_f;
+  /// state_outputs
+  MKLDNNDataPtr hy_f;
+  /// state_outputs
+  MemoryPtr hy_m_f;
+  /// lstm & state_outputs
+  MKLDNNDataPtr cy_f;
+  /// lstm & state_outputs
+  MemoryPtr cy_m_f;
+
+  /// used for training only
+  MemoryPtr workspace_m_f;
 
   // Backward vars
   MKLDNNPrimitive<DType> rnnBwd;
   std::shared_ptr<rnn_backward::primitive_desc> rnnBwd_pd;
-  std::shared_ptr<MKLDNNData<DType> > x_b, hx_b, cx_b, dy_b, dhy_b, dcy_b, w_b,
-      workspace_b, dx_b, dhx_b, dcx_b, dw_b;
-  std::shared_ptr<primitive> x_p_b, hx_p_b, cx_p_b, dy_p_b, dhy_p_b, dcy_p_b,
-      w_p_b, workspace_p_b;
-  std::shared_ptr<memory> dx_m_b, dhx_m_b, dcx_m_b, dw_m_b;
+  MKLDNNDataPtr x_b;
+  MKLDNNDataPtr hx_b;
+  MKLDNNDataPtr cx_b;
+  MKLDNNDataPtr dy_b;
+  MKLDNNDataPtr dhy_b;
+  MKLDNNDataPtr dcy_b;
+  MKLDNNDataPtr w_b;
+  MKLDNNDataPtr workspace_b;
+  MKLDNNDataPtr dx_b;
+  MKLDNNDataPtr dhx_b;
+  MKLDNNDataPtr dcx_b;
+  MKLDNNDataPtr dw_b;
+  PrimitivePtr x_p_b;
+  PrimitivePtr hx_p_b;
+  PrimitivePtr cx_p_b;
+  PrimitivePtr dy_p_b;
+  PrimitivePtr dhy_p_b;
+  PrimitivePtr dcy_p_b;
+  PrimitivePtr w_p_b;
+  PrimitivePtr workspace_p_b;
+  MemoryPtr dx_m_b;
+  MemoryPtr dhx_m_b;
+  MemoryPtr dcx_m_b;
+  MemoryPtr dw_m_b;
 
 };  // class MKLDNNRnnOp
 }  // namespace op

@@ -87,34 +87,36 @@ def test_fused_lstm_forget_bias():
     expected_bias = forget_bias * np.ones(10, )
     assert_allclose(args[bias_name].asnumpy(), expected_bias)
 
+###################################
+# GRU NOT SUPPORTED
+###################################
+# def test_fused_gru():
+#     fused = mx.rnn.FusedRNNCell(100, num_layers=2, mode='gru', prefix='')
 
-def test_fused_gru():
-    fused = mx.rnn.FusedRNNCell(100, num_layers=2, mode='gru', prefix='')
+#     stack = mx.rnn.SequentialRNNCell()
+#     stack.add(mx.rnn.GRUCell(100, prefix='l0_'))
+#     stack.add(mx.rnn.GRUCell(100, prefix='l1_'))
 
-    stack = mx.rnn.SequentialRNNCell()
-    stack.add(mx.rnn.GRUCell(100, prefix='l0_'))
-    stack.add(mx.rnn.GRUCell(100, prefix='l1_'))
-
-    check_rnn_consistency(fused, stack)
-    check_rnn_consistency(stack, fused)
+#     check_rnn_consistency(fused, stack)
+#     check_rnn_consistency(stack, fused)
 
 
-def test_fused_bidirectional():
-    fused = mx.rnn.FusedRNNCell(100, num_layers=2, mode='gru', prefix='',
-            bidirectional=True)
+# def test_fused_bidirectional():
+#     fused = mx.rnn.FusedRNNCell(100, num_layers=2, mode='gru', prefix='',
+#             bidirectional=True)
 
-    stack = mx.rnn.SequentialRNNCell()
-    stack.add(mx.rnn.BidirectionalCell(
-                mx.rnn.GRUCell(100, prefix='l0_'),
-                mx.rnn.GRUCell(100, prefix='r0_'),
-                output_prefix='bi_gru_0_'))
-    stack.add(mx.rnn.BidirectionalCell(
-                mx.rnn.GRUCell(100, prefix='l1_'),
-                mx.rnn.GRUCell(100, prefix='r1_'),
-                output_prefix='bi_gru_1_'))
+#     stack = mx.rnn.SequentialRNNCell()
+#     stack.add(mx.rnn.BidirectionalCell(
+#                 mx.rnn.GRUCell(100, prefix='l0_'),
+#                 mx.rnn.GRUCell(100, prefix='r0_'),
+#                 output_prefix='bi_gru_0_'))
+#     stack.add(mx.rnn.BidirectionalCell(
+#                 mx.rnn.GRUCell(100, prefix='l1_'),
+#                 mx.rnn.GRUCell(100, prefix='r1_'),
+#                 output_prefix='bi_gru_1_'))
 
-    check_rnn_consistency(fused, stack)
-    check_rnn_consistency(stack, fused)
+#     check_rnn_consistency(fused, stack)
+#     check_rnn_consistency(stack, fused)
 
 if __name__ == '__main__':
     import nose
