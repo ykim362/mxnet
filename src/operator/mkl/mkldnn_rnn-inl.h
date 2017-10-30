@@ -205,6 +205,14 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     if (req[rnn_enum::kParams] != kAddTo) {
       dw = mshadow::expr::ScalarExp<DType>(0.0f);
     }
+    CHECK_EQ(x.CheckContiguous(), true);
+    CHECK_EQ(w.CheckContiguous(), true);
+    CHECK_EQ(dw.CheckContiguous(), true);
+    CHECK_EQ(hx.CheckContiguous(), true);
+    CHECK_EQ(dhx.CheckContiguous(), true);
+    CHECK_EQ(y.CheckContiguous(), true);
+    CHECK_EQ(dy.CheckContiguous(), true);
+
     // only need kStateOut grad output_states is true
     DType *dhy_ptr = nullptr;
     if (param_.state_outputs)
@@ -232,17 +240,10 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                     out_grad[rnn_enum::kStateCellOut], s)
                     .dptr_;
 
-    CHECK_EQ(x.CheckContiguous(), true);
-    CHECK_EQ(w.CheckContiguous(), true);
-    CHECK_EQ(dw.CheckContiguous(), true);
-    CHECK_EQ(hx.CheckContiguous(), true);
-    CHECK_EQ(dhx.CheckContiguous(), true);
-    CHECK_EQ(y.CheckContiguous(), true);
-    CHECK_EQ(dy.CheckContiguous(), true);
-
     if (!init_mkldnn_) {
       LayerSetup(ctx, in_data, out_data);
 
+      // standard inputs/outputs
       x_p_b = x_f->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
       w_p_b =
           w_f->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
@@ -265,13 +266,42 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
       dcx_m_b = hx_f->create_output_memory(dcx_ptr,
                                            in_grad[rnn_enum::kStateCell], hx_f);
       std::shared_ptr<memory> workspace;
-      if (ctx.is_train) {
-        auto workspace_primitive_desc = rnnBwd_pd->workspace_primitive_desc();
-        workspace.reset(new memory(workspace_primitive_desc));
+      auto workspace_primitive_desc = rnnBwd_pd->workspace_primitive_desc();
+      workspace.reset(new memory(workspace_primitive_desc));
+      // lstm & state_outputs
+      if (param_.lstm_q_ && param_.state_outputs) {
+        rnnBwd.reset(
+            new rnn_backward(*rnnBwd_pd, primitive::at(*x_p_b),
+                             primitive::at(*hx_p_b), primitive::at(*cx_p_b),
+                             primitive::at(*dy_p_b), primitive::at(*dhy_p_b),
+                             primitive::at(*dcy_p_b), primitive::at(*w_p_b),
+                             *workspace, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
       }
-      rnnBwd.reset(new rnn_backward(
-          *rnnBwd_pd, *x_p_b, *hx_p_b, *cx_p_b, *dy_p_b, *dhy_p_b, *dcy_p_b,
-          *w_p_b, *workspace, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
+      // lstm
+      else if (param_.lstm_q_) {
+        rnnBwd.reset(
+            new rnn_backward(*rnnBwd_pd, primitive::at(*x_p_b),
+                             primitive::at(*hx_p_b), primitive::at(*cx_p_b),
+                             primitive::at(*dy_p_b), primitive::at(*w_p_b),
+                             *workspace, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
+      }
+      // state_outputs
+      else if (param_.state_outputs) {
+        rnnBwd.reset(new rnn_backward(
+            *rnnBwd_pd, primitive::at(*x_p_b), primitive::at(*hx_p_b),
+            primitive::at(*dy_p_b), primitive::at(*dhy_p_b),
+            primitive::at(*w_p_b), *workspace, *dx_m_b, *dhx_m_b, *dw_m_b));
+      }
+      // standard
+      else {
+        rnnBwd.reset(new rnn_backward(
+            *rnnBwd_pd, primitive::at(*x_p_b), primitive::at(*hx_p_b),
+            primitive::at(*dy_p_b), primitive::at(*w_p_b), *workspace, *dx_m_b,
+            *dhx_m_b, *dw_m_b));
+      }
+
+    } else {
+      // sync inputs/ouputs
     }
     rnnBwd.submit();
   }
