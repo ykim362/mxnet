@@ -360,7 +360,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
         {param_.num_layers, param_.batch_size_, param_.state_size}, mpcsn,
         mfmt);
     memory::desc y_desc(
-        {param_.seq_length_, param_.batch_size_, dir * param_.state_size},
+        {param_.seq_length_, param_.batch_size_, dirn * param_.state_size},
         mpcsn, mfmt);
     // calculate weights size
     auto w_m = param_.lstm_q_ ? 4 : 1;
@@ -369,8 +369,8 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     auto wx_size =
         param_.state_size * (param_.state_size + param_.state_size + 2) * w_m;
     auto total_w = param_.num_layers == 1
-                       ? dir * w1_size
-                       : dir * (w1_size + (param_.num_layers - 1) * wx_size);
+                       ? dirn * w1_size
+                       : dirn * (w1_size + (param_.num_layers - 1) * wx_size);
     memory::desc w_desc({total_w}, mpcsn, memory::format::x);
 
     // create RNN primitive descriptors for fwd and bwd
