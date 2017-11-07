@@ -117,6 +117,23 @@ def test_residual_fused():
     assert np.array_equal(outputs[0].asnumpy(), expected_outputs)
 
 def test_bidirectional():
+    fused = mx.rnn.FusedRNNCell(100, num_layers=2, mode='rnn_relu', prefix='',
+            bidirectional=True)
+
+    stack = mx.rnn.SequentialRNNCell()
+    stack.add(mx.rnn.BidirectionalCell(
+                mx.rnn.RNNCell(100, activation='relu', prefix='l0_'),
+                mx.rnn.RNNCell(100, activation='relu', prefix='r0_'),
+                output_prefix='bi_rnnrelu_0_'))
+    stack.add(mx.rnn.BidirectionalCell(
+                mx.rnn.RNNCell(100, activation='relu', prefix='l1_'),
+                mx.rnn.RNNCell(100, activation='relu', prefix='r1_'),
+                output_prefix='bi_rnnrelu_1_'))
+
+    check_rnn_consistency(fused, stack)
+    check_rnn_consistency(stack, fused)
+
+def test_bidirectional_lstm():
     fused = mx.rnn.FusedRNNCell(100, num_layers=2, mode='lstm', prefix='',
             bidirectional=True)
 
