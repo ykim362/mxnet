@@ -240,9 +240,9 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                     out_grad[rnn_enum::kStateCellOut], s)
                     .dptr_;
 
-    if (!init_mkldnn_) {
-      LayerSetup(ctx, in_data, out_data);
+    if (!init_mkldnn_) LayerSetup(ctx, in_data, out_data);
 
+    if (rnnBwd.aprimitive == NULL) {
       // standard inputs/outputs
       x_p_b = x_f->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
       w_p_b =
@@ -251,20 +251,24 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
           hx_f->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
       dy_p_b =
           y_f->get_converted_prv(dy.dptr_, false, out_grad[rnn_enum::kOut]);
-      dhy_p_b = hx_f->get_converted_prv(dhy_ptr, false,
-                                        out_grad[rnn_enum::kStateOut]);
-      cx_p_b =
-          hx_f->get_converted_prv(cx_ptr, false, in_data[rnn_enum::kStateCell]);
-      dcy_p_b = hx_f->get_converted_prv(dcy_ptr, false,
-                                        out_grad[rnn_enum::kStateCellOut]);
+      if (param_.state_outputs)
+        dhy_p_b = hx_f->get_converted_prv(dhy_ptr, false,
+                                          out_grad[rnn_enum::kStateOut]);
+      if (param_.mode == rnn_enum::kLstm) {
+        cx_p_b = hx_f->get_converted_prv(cx_ptr, false,
+                                         in_data[rnn_enum::kStateCell]);
+        dcx_m_b = hx_f->create_output_memory(
+            dcx_ptr, in_grad[rnn_enum::kStateCell], hx_f);
+      }
+      if ((param_.mode == rnn_enum::kLstm) && param_.state_outputs)
+        dcy_p_b = hx_f->get_converted_prv(dcy_ptr, false,
+                                          out_grad[rnn_enum::kStateCellOut]);
       dx_m_b =
           x_f->create_output_memory(dx.dptr_, in_grad[rnn_enum::kData], x_f);
       dw_m_b =
           w_f->create_output_memory(dw.dptr_, in_grad[rnn_enum::kParams], w_f);
       dhx_m_b = hx_f->create_output_memory(dhx.dptr_, in_grad[rnn_enum::kState],
                                            hx_f);
-      dcx_m_b = hx_f->create_output_memory(dcx_ptr,
-                                           in_grad[rnn_enum::kStateCell], hx_f);
       std::shared_ptr<memory> workspace;
       auto workspace_primitive_desc = rnnBwd_pd->workspace_primitive_desc();
       workspace.reset(new memory(workspace_primitive_desc));
