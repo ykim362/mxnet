@@ -269,9 +269,9 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                                           dw_b);
       dhx_m_b = dhx_b->create_output_memory(dhx.dptr_,
                                             in_grad[rnn_enum::kState], dhx_b);
-      std::shared_ptr<memory> workspace;
-      auto workspace_primitive_desc = rnnBwd_pd->workspace_primitive_desc();
-      workspace.reset(new memory(workspace_primitive_desc));
+      // std::shared_ptr<memory> workspace;
+      // auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
+      // workspace.reset(new memory(workspace_primitive_desc));
       // lstm & state_outputs
       if (param_.lstm_q_ && param_.state_outputs) {
         rnnBwd.reset(
@@ -279,7 +279,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                              primitive::at(*hx_p_b), primitive::at(*cx_p_b),
                              primitive::at(*dy_p_b), primitive::at(*dhy_p_b),
                              primitive::at(*dcy_p_b), primitive::at(*w_p_b),
-                             *workspace, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
+                             *workspace_m_f, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
       }
       // lstm
       else if (param_.lstm_q_) {
@@ -287,20 +287,20 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
             new rnn_backward(*rnnBwd_pd, primitive::at(*x_p_b),
                              primitive::at(*hx_p_b), primitive::at(*cx_p_b),
                              primitive::at(*dy_p_b), primitive::at(*w_p_b),
-                             *workspace, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
+                             *workspace_m_f, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
       }
       // state_outputs
       else if (param_.state_outputs) {
         rnnBwd.reset(new rnn_backward(
             *rnnBwd_pd, primitive::at(*x_p_b), primitive::at(*hx_p_b),
             primitive::at(*dy_p_b), primitive::at(*dhy_p_b),
-            primitive::at(*w_p_b), *workspace, *dx_m_b, *dhx_m_b, *dw_m_b));
+            primitive::at(*w_p_b), *workspace_m_f, *dx_m_b, *dhx_m_b, *dw_m_b));
       }
       // standard
       else {
         rnnBwd.reset(new rnn_backward(
             *rnnBwd_pd, primitive::at(*x_p_b), primitive::at(*hx_p_b),
-            primitive::at(*dy_p_b), primitive::at(*w_p_b), *workspace, *dx_m_b,
+            primitive::at(*dy_p_b), primitive::at(*w_p_b), *workspace_m_f, *dx_m_b,
             *dhx_m_b, *dw_m_b));
       }
 
