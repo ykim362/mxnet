@@ -244,31 +244,31 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
 
     if (rnnBwd.aprimitive == NULL) {
       // standard inputs/outputs
-      x_p_b = x_f->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
+      x_p_b = x_b->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
       w_p_b =
-          w_f->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
+          w_b->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
       hx_p_b =
-          hx_f->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
+          hx_b->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
       dy_p_b =
-          y_f->get_converted_prv(dy.dptr_, false, out_grad[rnn_enum::kOut]);
+          dy_b->get_converted_prv(dy.dptr_, false, out_grad[rnn_enum::kOut]);
       if (param_.state_outputs)
-        dhy_p_b = hx_f->get_converted_prv(dhy_ptr, false,
-                                          out_grad[rnn_enum::kStateOut]);
+        dhy_p_b = dhy_b->get_converted_prv(dhy_ptr, false,
+                                           out_grad[rnn_enum::kStateOut]);
       if (param_.mode == rnn_enum::kLstm) {
-        cx_p_b = hx_f->get_converted_prv(cx_ptr, false,
+        cx_p_b = cx_b->get_converted_prv(cx_ptr, false,
                                          in_data[rnn_enum::kStateCell]);
-        dcx_m_b = hx_f->create_output_memory(
-            dcx_ptr, in_grad[rnn_enum::kStateCell], hx_f);
+        dcx_m_b = dcx_b->create_output_memory(
+            dcx_ptr, in_grad[rnn_enum::kStateCell], dcx_b);
       }
       if ((param_.mode == rnn_enum::kLstm) && param_.state_outputs)
-        dcy_p_b = hx_f->get_converted_prv(dcy_ptr, false,
-                                          out_grad[rnn_enum::kStateCellOut]);
+        dcy_p_b = dcy_b->get_converted_prv(dcy_ptr, false,
+                                           out_grad[rnn_enum::kStateCellOut]);
       dx_m_b =
-          x_f->create_output_memory(dx.dptr_, in_grad[rnn_enum::kData], x_f);
-      dw_m_b =
-          w_f->create_output_memory(dw.dptr_, in_grad[rnn_enum::kParams], w_f);
-      dhx_m_b = hx_f->create_output_memory(dhx.dptr_, in_grad[rnn_enum::kState],
-                                           hx_f);
+          dx_b->create_output_memory(dx.dptr_, in_grad[rnn_enum::kData], dx_b);
+      dw_m_b = dw_b->create_output_memory(dw.dptr_, in_grad[rnn_enum::kParams],
+                                          dw_b);
+      dhx_m_b = dhx_b->create_output_memory(dhx.dptr_,
+                                            in_grad[rnn_enum::kState], dhx_b);
       std::shared_ptr<memory> workspace;
       auto workspace_primitive_desc = rnnBwd_pd->workspace_primitive_desc();
       workspace.reset(new memory(workspace_primitive_desc));
@@ -413,6 +413,18 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
       auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
       workspace_m_f.reset(new memory(workspace_primitive_desc));
     }
+
+    x_b.reset(new MKLDNNData<DType>(x_mpd, prv_mpd));
+    dx_b.reset(new MKLDNNData<DType>(x_mpd, prv_mpd));
+    hx_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    cx_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    dhx_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    dhy_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    dcx_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    dcy_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
+    dy_b.reset(new MKLDNNData<DType>(y_mpd, prv_mpd));
+    w_b.reset(new MKLDNNData<DType>(w_mpd, prv_mpd));
+    dw_b.reset(new MKLDNNData<DType>(w_mpd, prv_mpd));
   }
 
   bool init_mkldnn_;
