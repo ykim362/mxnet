@@ -36,7 +36,7 @@ template<>
 Operator *CreateOp<cpu>(RNNParam param, int dtype) {
   Operator *op = NULL;
 #if MXNET_USE_MKLDNN == 1
-  if (param.mode != rnn_enum::kGru) {
+  if (param.mode != rnn_enum::kGru && !param.bidirectional){
     switch (dtype) {
     case mshadow::kFloat32:
       return new MKLDNNRnnOp<cpu, float>(param);
@@ -44,7 +44,7 @@ Operator *CreateOp<cpu>(RNNParam param, int dtype) {
       break;
     }
   }
-  LOG(FATAL) << "MKLDNN RNN does not support GRU mode at the moment.";
+  LOG(FATAL) << "MKLDNN RNN does not support GRU mode and bi-directional mode at the moment.";
 #endif
   LOG(FATAL) << "RNN on CPU is only available with MXNET_USE_MKLDNN at the moment.";
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {

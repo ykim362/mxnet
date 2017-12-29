@@ -79,11 +79,75 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     }
     // standard inputs/outputs
     x_p_f = x_f->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
-    w_p_f =
-        w_f->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
     hx_p_f =
         hx_f->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
     y_m_f = y_f->create_output_memory(y.dptr_, out_data[rnn_enum::kOut], y_f);
+
+    // convert weight layout
+    int total_layers = param_.num_layers * (param_.bidirectional + 1);
+    int w_off = 0;
+    int in_size = 0;
+    int input_size = param_.input_size_;
+    int state_size = param_.state_size;
+    int multiple = 1;
+    if (param_.mode == rnn_enum::kLstm) multiple = 4;
+    int w1_size = (param_.input_size_ + param_.state_size + 2)*param_.state_size*multiple;
+    int wx_size = (param_.state_size + param_.state_size + 2)*param_.state_size*multiple;
+    int wa = w1_size + (param_.num_layers - 1) * wx_size;
+    int dl, rl, roff, rt;
+    DType* w_prv_ptr = (DType*)w_m_f->get_data_handle();
+    DType* w_cpu_ptr = w.dptr_;
+    for (int l = 0; l < total_layers; l++) {
+        dl = l / param_.num_layers;
+        rl = l % param_.num_layers;
+        roff = (rl == 0) ? 0 : (w1_size + (rl - 1) * wx_size);
+        w_off = wa * dl + roff;
+        in_size = (rl == 0) ? input_size : state_size;
+        // Wx
+        size_t offset = (rl == 0) ?
+                0 :
+                multiple * (input_size * state_size
+                            + (rl - 1) * (state_size * state_size))
+                        + multiple * rl * (state_size * state_size);
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
+        for (size_t ii = 0; ii < multiple * state_size; ii++) {
+            for (size_t jj = 0; jj < in_size; jj++) {
+                w_prv_ptr[w_off + ii + jj * multiple * state_size]
+                        = w_cpu_ptr[offset + ii * in_size + jj];
+            }
+        }
+
+        // Wh
+        offset += multiple * in_size * state_size;
+        w_off += multiple * in_size * state_size;
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
+        for (size_t ii = 0; ii < multiple * state_size; ii++) {
+            for (size_t jj = 0; jj < state_size; jj++) {
+                w_prv_ptr[w_off + ii + jj * multiple * state_size]
+                        = w_cpu_ptr[offset + ii * state_size + jj];
+            }
+        }
+
+        // bx
+        w_off += multiple * state_size * state_size;
+        offset = multiple * (input_size + state_size) * state_size;
+        if (param_.num_layers > 1)
+            offset += (param_.num_layers - 1) * 2 * multiple * state_size * state_size
+                    + rl * 2 * multiple * state_size;
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
+        for (size_t ii = 0; ii < multiple * state_size; ii++) {
+            for (size_t jj = 0; jj < 2; jj++) {
+                w_prv_ptr[w_off + ii + jj * multiple * state_size]
+                        = w_cpu_ptr[offset + ii + jj * multiple * state_size];
+            }
+        }
+    }
 
     // extra inputs/outputs
     DType *hy_ptr = nullptr;
@@ -125,7 +189,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                                    primitive::at(*x_p_f),
                                    primitive::at(*hx_p_f),
                                    primitive::at(*cx_p_f),
-                                   primitive::at(*w_p_f),
+                                   primitive::at(*w_m_f),
                                    *y_m_f,
                                    *hy_m_f,
                                    *cy_m_f,
@@ -137,7 +201,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                                    primitive::at(*x_p_f),
                                    primitive::at(*hx_p_f),
                                    primitive::at(*cx_p_f),
-                                   primitive::at(*w_p_f),
+                                   primitive::at(*w_m_f),
                                    *y_m_f,
                                    *workspace_m_f));
     }
@@ -146,7 +210,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
       rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
                                    primitive::at(*x_p_f),
                                    primitive::at(*hx_p_f),
-                                   primitive::at(*w_p_f),
+                                   primitive::at(*w_m_f),
                                    *y_m_f,
                                    *hy_m_f,
                                    *workspace_m_f));
@@ -156,7 +220,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
       rnnFwd.reset(new rnn_forward(*rnnFwd_pd,
                                    primitive::at(*x_p_f),
                                    primitive::at(*hx_p_f),
-                                   primitive::at(*w_p_f),
+                                   primitive::at(*w_m_f),
                                    *y_m_f,
                                    *workspace_m_f));
     }
@@ -242,11 +306,22 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
 
     if (!init_mkldnn_) LayerSetup(ctx, in_data, out_data);
 
+    // variables for weight layout conversions
+    int total_layers = param_.num_layers * (param_.bidirectional + 1);
+    int w_off = 0;
+    int in_size = 0;
+    int input_size = param_.input_size_;
+    int state_size = param_.state_size;
+    int multiple = 1;
+    if (param_.mode == rnn_enum::kLstm) multiple = 4;
+    int w1_size = (param_.input_size_ + param_.state_size + 2)*param_.state_size*multiple;
+    int wx_size = (param_.state_size + param_.state_size + 2)*param_.state_size*multiple;
+    int wa = w1_size + (param_.num_layers - 1) * wx_size;
+    int dl, rl, roff, rt;
+
     if (rnnBwd.aprimitive == NULL) {
       // standard inputs/outputs
       x_p_b = x_b->get_converted_prv(x.dptr_, false, in_data[rnn_enum::kData]);
-      w_p_b =
-          w_b->get_converted_prv(w.dptr_, false, in_data[rnn_enum::kParams]);
       hx_p_b =
           hx_b->get_converted_prv(hx.dptr_, false, in_data[rnn_enum::kState]);
       dy_p_b =
@@ -265,20 +340,73 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
                                            out_grad[rnn_enum::kStateCellOut]);
       dx_m_b =
           dx_b->create_output_memory(dx.dptr_, in_grad[rnn_enum::kData], dx_b);
-      dw_m_b = dw_b->create_output_memory(dw.dptr_, in_grad[rnn_enum::kParams],
-                                          dw_b);
+      // dw_m_b = dw_b->create_output_memory(dw.dptr_, in_grad[rnn_enum::kParams],
+      //                                     dw_b);
       dhx_m_b = dhx_b->create_output_memory(dhx.dptr_,
                                             in_grad[rnn_enum::kState], dhx_b);
-      // std::shared_ptr<memory> workspace;
-      // auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
-      // workspace.reset(new memory(workspace_primitive_desc));
+
+      // convert weight layout
+      DType* w_prv_ptr = (DType*)w_m_f->get_data_handle();
+      DType* w_cpu_ptr = w.dptr_;
+      for (int l = 0; l < total_layers; l++) {
+          dl = l / param_.num_layers;
+          rl = l % param_.num_layers;
+          roff = (rl == 0) ? 0 : (w1_size + (rl - 1) * wx_size);
+          w_off = wa * dl + roff;
+          in_size = (rl == 0) ? input_size : state_size;
+          // Wx
+          size_t offset = (rl == 0) ?
+                  0 :
+                  multiple * (input_size * state_size
+                              + (rl - 1) * (state_size * state_size))
+                          + multiple * rl * (state_size * state_size);
+  #if defined(_OPENMP)
+  #pragma omp parallel for
+  #endif
+          for (size_t ii = 0; ii < multiple * state_size; ii++) {
+              for (size_t jj = 0; jj < in_size; jj++) {
+                  w_prv_ptr[w_off + ii + jj * multiple * state_size]
+                          = w_cpu_ptr[offset + ii * in_size + jj];
+              }
+          }
+
+          // Wh
+          offset += multiple * in_size * state_size;
+          w_off += multiple * in_size * state_size;
+  #if defined(_OPENMP)
+  #pragma omp parallel for
+  #endif
+          for (size_t ii = 0; ii < multiple * state_size; ii++) {
+              for (size_t jj = 0; jj < state_size; jj++) {
+                  w_prv_ptr[w_off + ii + jj * multiple * state_size]
+                          = w_cpu_ptr[offset + ii * state_size + jj];
+              }
+          }
+
+          // bx
+          w_off += multiple * state_size * state_size;
+          offset = multiple * (input_size + state_size) * state_size;
+          if (param_.num_layers > 1)
+              offset += (param_.num_layers - 1) * 2 * multiple * state_size * state_size
+                      + rl * 2 * multiple * state_size;
+  #if defined(_OPENMP)
+  #pragma omp parallel for
+  #endif
+          for (size_t ii = 0; ii < multiple * state_size; ii++) {
+              for (size_t jj = 0; jj < 2; jj++) {
+                  w_prv_ptr[w_off + ii + jj * multiple * state_size]
+                          = w_cpu_ptr[offset + ii + jj * multiple * state_size];
+              }
+          }
+      }
+
       // lstm & state_outputs
       if (param_.lstm_q_ && param_.state_outputs) {
         rnnBwd.reset(
             new rnn_backward(*rnnBwd_pd, primitive::at(*x_p_b),
                              primitive::at(*hx_p_b), primitive::at(*cx_p_b),
                              primitive::at(*dy_p_b), primitive::at(*dhy_p_b),
-                             primitive::at(*dcy_p_b), primitive::at(*w_p_b),
+                             primitive::at(*dcy_p_b), primitive::at(*w_m_f),
                              *workspace_m_f, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
       }
       // lstm
@@ -286,7 +414,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
         rnnBwd.reset(
             new rnn_backward(*rnnBwd_pd, primitive::at(*x_p_b),
                              primitive::at(*hx_p_b), primitive::at(*cx_p_b),
-                             primitive::at(*dy_p_b), primitive::at(*w_p_b),
+                             primitive::at(*dy_p_b), primitive::at(*w_m_f),
                              *workspace_m_f, *dx_m_b, *dhx_m_b, *dcx_m_b, *dw_m_b));
       }
       // state_outputs
@@ -294,13 +422,13 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
         rnnBwd.reset(new rnn_backward(
             *rnnBwd_pd, primitive::at(*x_p_b), primitive::at(*hx_p_b),
             primitive::at(*dy_p_b), primitive::at(*dhy_p_b),
-            primitive::at(*w_p_b), *workspace_m_f, *dx_m_b, *dhx_m_b, *dw_m_b));
+            primitive::at(*w_m_f), *workspace_m_f, *dx_m_b, *dhx_m_b, *dw_m_b));
       }
       // standard
       else {
         rnnBwd.reset(new rnn_backward(
             *rnnBwd_pd, primitive::at(*x_p_b), primitive::at(*hx_p_b),
-            primitive::at(*dy_p_b), primitive::at(*w_p_b), *workspace_m_f, *dx_m_b,
+            primitive::at(*dy_p_b), primitive::at(*w_m_f), *workspace_m_f, *dx_m_b,
             *dhx_m_b, *dw_m_b));
       }
 
@@ -308,6 +436,62 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
       // sync inputs/ouputs
     }
     rnnBwd.submit();
+
+    // convert weight gradient back
+    DType* dw_prv_ptr = (DType*)dw_m_b->get_data_handle();
+    DType* dw_cpu_ptr = dw.dptr_;
+    for (int l = 0; l < total_layers; l++) {
+        dl = l / param_.num_layers;
+        rl = l % param_.num_layers;
+        roff = (rl == 0) ? 0 : (w1_size + (rl - 1) * wx_size);
+        w_off = wa * dl + roff;
+        in_size = (rl == 0) ? input_size : state_size;
+        // Wx
+        size_t offset = (rl == 0) ?
+                0 :
+                multiple * (input_size * state_size
+                            + (rl - 1) * (state_size * state_size))
+                        + multiple * rl * (state_size * state_size);
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
+        for (size_t ii = 0; ii < multiple * state_size; ii++) {
+            for (size_t jj = 0; jj < in_size; jj++) {
+                dw_cpu_ptr[offset + ii * in_size + jj]
+                        = dw_prv_ptr[w_off + ii + jj * multiple * state_size];
+            }
+        }
+
+        // Wh
+        offset += multiple * in_size * state_size;
+        w_off += multiple * in_size * state_size;
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
+        for (size_t ii = 0; ii < multiple * state_size; ii++) {
+            for (size_t jj = 0; jj < state_size; jj++) {
+                dw_cpu_ptr[offset + ii * state_size + jj]
+                        = dw_prv_ptr[w_off + ii + jj * multiple * state_size];
+            }
+        }
+
+        // bx
+        w_off += multiple * state_size * state_size;
+        offset = multiple * (input_size + state_size) * state_size;
+        if (param_.num_layers > 1)
+            offset += (param_.num_layers - 1) * 2 * multiple * state_size * state_size
+                    + rl * 2 * multiple * state_size;
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
+        for (size_t ii = 0; ii < multiple * state_size; ii++) {
+            for (size_t jj = 0; jj < 2; jj++) {
+                dw_cpu_ptr[offset + ii + jj * multiple * state_size]
+                        = dw_prv_ptr[w_off + ii + jj * multiple * state_size];
+            }
+        }
+    }
+
   }
 
  private:
@@ -405,9 +589,8 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     std::shared_ptr<memory::primitive_desc> y_mpd(
         new memory::primitive_desc(y_desc, cpu_engine));
     y_f.reset(new MKLDNNData<DType>(y_mpd, prv_mpd));
-    std::shared_ptr<memory::primitive_desc> w_mpd(
-        new memory::primitive_desc(w_desc, cpu_engine));
-    w_f.reset(new MKLDNNData<DType>(w_mpd, prv_mpd));
+    w_m_f.reset(new memory({w_desc, cpu_engine}));
+    dw_m_b.reset(new memory({w_desc, cpu_engine}));
 
     if (ctx.is_train) {
       auto workspace_primitive_desc = rnnFwd_pd->workspace_primitive_desc();
@@ -423,8 +606,6 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
     dcx_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
     dcy_b.reset(new MKLDNNData<DType>(hx_mpd, prv_mpd));
     dy_b.reset(new MKLDNNData<DType>(y_mpd, prv_mpd));
-    w_b.reset(new MKLDNNData<DType>(w_mpd, prv_mpd));
-    dw_b.reset(new MKLDNNData<DType>(w_mpd, prv_mpd));
   }
 
   bool init_mkldnn_;
@@ -443,8 +624,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
   PrimitivePtr x_p_f;
   MKLDNNDataPtr hx_f;
   PrimitivePtr hx_p_f;
-  MKLDNNDataPtr w_f;
-  PrimitivePtr w_p_f;
+  MemoryPtr w_m_f;
   /// lstm
   MKLDNNDataPtr cx_f;
   /// lstm
@@ -461,6 +641,7 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
   MKLDNNDataPtr cy_f;
   /// lstm & state_outputs
   MemoryPtr cy_m_f;
+  // MemoryPtr dw_m_b;
 
   /// used for training only
   MemoryPtr workspace_m_f;
@@ -474,19 +655,16 @@ class MKLDNNRnnOp : public Operator, public MKLDNNLayer<DType> {
   MKLDNNDataPtr dy_b;
   MKLDNNDataPtr dhy_b;
   MKLDNNDataPtr dcy_b;
-  MKLDNNDataPtr w_b;
   MKLDNNDataPtr workspace_b;
   MKLDNNDataPtr dx_b;
   MKLDNNDataPtr dhx_b;
   MKLDNNDataPtr dcx_b;
-  MKLDNNDataPtr dw_b;
   PrimitivePtr x_p_b;
   PrimitivePtr hx_p_b;
   PrimitivePtr cx_p_b;
   PrimitivePtr dy_p_b;
   PrimitivePtr dhy_p_b;
   PrimitivePtr dcy_p_b;
-  PrimitivePtr w_p_b;
   PrimitivePtr workspace_p_b;
   MemoryPtr dx_m_b;
   MemoryPtr dhx_m_b;
